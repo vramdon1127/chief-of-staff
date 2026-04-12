@@ -1466,9 +1466,15 @@ async function renderStats() {
     <!-- AI ADVISOR PLACEHOLDER -->
     <div id="aiAdvisorCard" class="stat-card" style="margin-bottom:16px;border-color:rgba(108,99,255,0.4);position:relative;overflow:hidden;">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));"></div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <div style="font-size:20px;">🧠</div>
-        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);">AI Advisor</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-size:20px;">🧠</div>
+          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);">AI Advisor</div>
+        </div>
+        <button onclick="refreshAdvisor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh
+        </button>
       </div>
       <div id="aiAdvisorContent" style="color:var(--text2);font-size:13px;">Analyzing your tasks...</div>
     </div>
