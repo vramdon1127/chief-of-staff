@@ -142,7 +142,8 @@ FOCUS: [your recommendation here]`;
     const aiData = await aiRes.json();
     const aiText = aiData.content?.[0]?.text || '';
     const focusMatch = aiText.match(/FOCUS: (.+)/s);
-    const focusLine = focusMatch ? focusMatch[1].trim() : aiText.trim();
+    const focusRaw = focusMatch ? focusMatch[1].trim() : aiText.trim();
+    const focusLine = focusRaw.replace(/\*\*(.+?)\*\*/g, '$1').replace(/^FOCUS:\s*/i, '').trim();
 
     // ── Build HTML email ────────────────────────────────────────
     const scoreColor = lifeScore >= 70 ? '#34d399' : lifeScore >= 40 ? '#fbbf24' : '#ef4444';
