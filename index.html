@@ -1467,7 +1467,7 @@ async function saveEdit() {
 
 // ─── TODAY VIEW ───────────────────────────────────────────────
 function renderToday() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
   const todayTasks = tasks.filter(t => t.due_date === today);
   const overdue = tasks.filter(t => t.due_date && t.due_date < today);
   const upcoming = tasks.filter(t => t.due_date && t.due_date > today).slice(0, 5);
