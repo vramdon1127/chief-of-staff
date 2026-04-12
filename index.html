@@ -2969,7 +2969,8 @@ function obNext(step) {
   document.getElementById(`step-dot-${step}`).classList.remove('active');
   document.getElementById(`step-dot-${step}`).classList.add('done');
   document.getElementById(`step-dot-${step + 1}`).classList.add('active');
-  window.scrollTo(0, 0);
+  const screen = document.getElementById('onboardingScreen');
+  screen.scrollTop = 0;
   if (step + 1 === 4) renderObHats();
   if (step + 1 === 5) renderObMetrics();
 }
@@ -2980,7 +2981,7 @@ function obBack(step) {
   document.getElementById(`step-dot-${step}`).classList.remove('active');
   document.getElementById(`step-dot-${step - 1}`).classList.remove('done');
   document.getElementById(`step-dot-${step - 1}`).classList.add('active');
-  window.scrollTo(0, 0);
+  document.getElementById('onboardingScreen').scrollTop = 0;
 }
 
 async function completeOnboarding() {
