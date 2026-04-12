@@ -777,10 +777,8 @@
         <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Your email (for digest)</div>
         <input id="ob-email" type="email" placeholder="you@email.com" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;">
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:32px;">
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Resend API Key <span style="color:var(--text2);font-weight:400;">(optional)</span></div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Free at resend.com — skip this for now if needed</div>
-        <input id="ob-resend" type="password" placeholder="re_..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:32px;">
+        <div style="font-size:12px;color:var(--text2);line-height:1.6;">📬 Your daily digest will arrive every morning with your Life Score, today's tasks, and one AI recommendation. No extra setup needed.</div>
       </div>
       <div style="display:flex;gap:10px;">
         <button onclick="obBack(4)" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">← Back</button>
@@ -902,9 +900,10 @@
         <div class="settings-label" style="font-weight:600;margin-bottom:4px;">📬 Daily Digest Email</div>
         <div class="settings-value" style="margin-bottom:8px;">Delivered at 7am CT every morning</div>
         <input type="email" class="api-input" id="digestEmailInput" placeholder="you@email.com">
-        <div class="settings-label" style="font-weight:600;margin-top:12px;margin-bottom:4px;">Resend API Key</div>
-        <div class="settings-value" style="margin-bottom:8px;">Get a free key at resend.com</div>
-        <input type="password" class="api-input" id="resendKeyInput" placeholder="re_...">
+        <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-top:8px;">
+          <div style="font-size:12px;color:var(--text2);">📬 Digest emails are sent automatically — no extra setup needed.</div>
+        </div>
+        <input type="hidden" id="resendKeyInput">
         <button class="save-btn" onclick="saveDigestSettings()">Save & Enable Digest</button>
         <button onclick="testDigest()" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">Send Test Email Now</button>
       </div>
@@ -2753,7 +2752,7 @@ async function completeOnboarding() {
   const name = document.getElementById('ob-name').value.trim();
   const apiKey = document.getElementById('ob-apikey').value.trim();
   const email = document.getElementById('ob-email').value.trim();
-  const resendKey = document.getElementById('ob-resend').value.trim();
+  const resendKey = null; // Resend key managed server-side
 
   const btn = document.querySelector('#ob-step-4 button:last-child');
   btn.disabled = true;
