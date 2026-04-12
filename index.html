@@ -1467,6 +1467,17 @@ async function loadAiAdvisor(active, today, completionRate, completedThisWeek) {
     return;
   }
 
+  // Build a fingerprint of current tasks — only re-run if tasks changed
+  const fingerprint = active.map(t => t.id + (t.priority||'') + (t.due_date||'') + (t.status||'')).sort().join('|');
+  const cached = localStorage.getItem('advisorCache');
+  const cachedPrint = localStorage.getItem('advisorFingerprint');
+
+  if (cached && cachedPrint === fingerprint) {
+    const el = document.getElementById('aiAdvisorContent');
+    if (el) el.innerHTML = cached;
+    return;
+  }
+
   const taskSummary = active.slice(0, 30).map(t =>
     `[${t.project}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
   ).join('\n');
@@ -1517,7 +1528,7 @@ Focus on: quick wins, stress reduction, what AI can do for him, overdue items, o
     if (!el || insights.length === 0) return;
 
         const fmt = s => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    el.innerHTML = insights.map((i,idx) => `
+    const rendered = insights.map((i,idx) => `
       <div style="margin-bottom:${idx < insights.length-1 ? '14px;padding-bottom:14px;border-bottom:1px solid var(--border)' : '0px'};">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
           <span style="font-size:18px;">${i.emoji}</span>
@@ -1525,6 +1536,10 @@ Focus on: quick wins, stress reduction, what AI can do for him, overdue items, o
         </div>
         <div style="font-size:13px;color:var(--text2);line-height:1.5;padding-left:26px;">${fmt(i.body)}</div>
       </div>`).join('');
+    // Render and cache
+    el.innerHTML = rendered;
+    localStorage.setItem('advisorCache', rendered);
+    localStorage.setItem('advisorFingerprint', fingerprint);
 
   } catch(e) {
     const el = document.getElementById('aiAdvisorContent');
