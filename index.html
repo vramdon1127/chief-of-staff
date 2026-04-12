@@ -2710,13 +2710,14 @@ function renderObMetrics() {
       ${m.active ? `
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Keywords that signal ${m.name} <span style="opacity:0.6;">(optional)</span></div>
-          <div style="font-size:11px;color:var(--text2);opacity:0.6;margin-bottom:6px;">Use names of people, places, tools, or short phrases — not full sentences</div>
+          <div style="font-size:11px;color:var(--text2);opacity:0.7;margin-bottom:6px;">${m.name === 'Faith' ? 'Your church name, pastor, small group — words that appear in your faith tasks' : m.name === 'Health' ? 'Gym name, workout type, doctor — words that appear in your health tasks' : m.name === 'Family' ? 'Spouse & kids names, date night — words that appear in your family tasks' : m.name === 'Recharge' ? 'Hobby, show, game, sport — words that appear in your rest & fun tasks' : m.name === 'Personal Finance' ? 'Budget, debt, savings — personal money words only, not business invoices' : m.name === 'Growth' ? 'Course name, skill, book topic — words that appear in your learning tasks' : m.name === 'Work' ? 'Company name, tools, acronyms — words that appear in your work tasks' : 'Names of people, places, or tools that appear in your tasks'}</div>
           <input type="text" 
-            placeholder="e.g. ${m.name === 'Faith' ? 'your church name, pastor, Bible, prayer group' : m.name === 'Health' ? 'gym name, workout type, doctor, therapist' : m.name === 'Family' ? 'spouse name, kids names, date night, school' : m.name === 'Recharge' ? 'hobby, show name, game, vacation' : m.name === 'Personal Finance' ? 'budget, debt, savings, mortgage — not business invoices' : m.name === 'Growth' ? 'course name, skill, book topic, app name' : m.name === 'Work' ? 'company name, tools, acronyms you use at work' : 'names of people, places, or tools in this area'}"
+            placeholder="Type keywords separated by commas..."
             value="${m.context || ''}"
             onclick="event.stopPropagation()"
             onchange="obMetrics[${i}].context=this.value"
-            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;margin-bottom:5px;">
+          <div style="font-size:11px;color:var(--text2);opacity:0.5;padding:0 2px;">e.g. ${m.name === 'Faith' ? 'church name, pastor, Bible, small group, prayer' : m.name === 'Health' ? 'gym name, workout type, walk, therapy' : m.name === 'Family' ? 'spouse name, kids names, date night' : m.name === 'Recharge' ? 'hobby, show name, game, vacation' : m.name === 'Personal Finance' ? 'budget, debt payoff, savings, mortgage' : m.name === 'Growth' ? 'course name, skill, book, side project' : m.name === 'Work' ? 'company name, tools, acronyms you use' : 'people names, place names, tools'}</div>
         </div>` : ''}
     </div>`).join('');
 }
