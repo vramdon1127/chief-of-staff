@@ -730,7 +730,7 @@
 
   <!-- STATS VIEW -->
   <div class="view" id="view-stats">
-    <div class="stats-grid" id="statsGrid"></div>
+    <div id="statsGrid"></div>
   </div>
 
   <!-- TODAY VIEW -->
@@ -1144,7 +1144,9 @@ async function toggleDone(taskId) {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
   const newStatus = task.status === 'done' ? 'todo' : 'done';
-  await updateTask(taskId, { status: newStatus });
+  const updates = { status: newStatus };
+  if (newStatus === 'done') updates.completed_at = new Date().toISOString();
+  await updateTask(taskId, updates);
   if (newStatus === 'done') {
     tasks = tasks.filter(t => t.id !== taskId);
     showToast('✓ Task completed');
@@ -1285,48 +1287,143 @@ function renderProjectTasks() {
   }).join('');
 }
 
-function renderStats() {
-  const total = tasks.length;
-  const aiComplete = tasks.filter(t => t.category === 'AI Complete').length;
-  const aiAssist = tasks.filter(t => t.category === 'AI Assist').length;
-  const manual = tasks.filter(t => t.category === 'Manual').length;
-  const gne = tasks.filter(t => t.project === 'GNE').length;
-  const caliber = tasks.filter(t => t.project === 'Caliber').length;
-  const personal = tasks.filter(t => t.project === 'Personal').length;
-  const p1 = tasks.filter(t => t.priority === 'P1').length;
+async function renderStats() {
+  const el = document.getElementById('statsGrid');
+  if (!el) return;
 
-  document.getElementById('statsGrid').innerHTML = `
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--accent)">${total}</div>
-      <div class="stat-label">Total Active</div>
+  // Fetch completed tasks from last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const since = thirtyDaysAgo.toISOString();
+
+  let completed = [];
+  try {
+    completed = await sbFetch(`tasks?status=eq.done&created_at=gte.${since}&order=completed_at.desc&limit=200`) || [];
+  } catch(e) {}
+
+  const today = new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
+
+  // Active tasks stats
+  const active = tasks;
+  const total = active.length;
+  const p1 = active.filter(t => t.priority === 'P1').length;
+  const dueToday = active.filter(t => t.due_date === today).length;
+  const aiComplete = active.filter(t => t.category === 'AI Complete').length;
+  const aiAssist = active.filter(t => t.category === 'AI Assist').length;
+  const manual = active.filter(t => t.category === 'Manual').length;
+
+  // Completed this week
+  const completedThisWeek = completed.filter(t => t.created_at >= weekAgoStr).length;
+  const addedThisWeek = active.filter(t => t.created_at >= weekAgoStr).length + completedThisWeek;
+  const completionRate = addedThisWeek > 0 ? Math.round((completedThisWeek / addedThisWeek) * 100) : 0;
+
+  // Project breakdown
+  const projData = [
+    { name: 'GNE', color: 'var(--gne)', count: active.filter(t => t.project === 'GNE').length },
+    { name: 'Caliber', color: 'var(--caliber)', count: active.filter(t => t.project === 'Caliber').length },
+    { name: 'Personal', color: 'var(--personal)', count: active.filter(t => t.project === 'Personal').length },
+    { name: 'ServeAnts', color: 'var(--servents)', count: active.filter(t => t.project === 'ServeAnts').length },
+  ];
+  const maxProj = Math.max(...projData.map(p => p.count), 1);
+
+  // Category breakdown
+  const totalCat = aiComplete + aiAssist + manual || 1;
+  const aiPct = Math.round(((aiComplete + aiAssist) / totalCat) * 100);
+
+  // Who adds more tasks
+  const vijayCount = active.filter(t => t.added_by === 'Vijay').length;
+  const miaCount = active.filter(t => t.added_by === 'Mia').length;
+
+  el.innerHTML = `
+    <!-- HEADER -->
+    <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;">Dashboard</div>
+    <div style="color:var(--text2);font-size:13px;margin-bottom:20px;">Last updated just now</div>
+
+    <!-- TOP STATS ROW -->
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;">
+      <div class="stat-card" style="border-color:rgba(108,99,255,0.3);">
+        <div class="stat-value" style="color:var(--accent)">${total}</div>
+        <div class="stat-label">Active Tasks</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(255,68,68,0.3);">
+        <div class="stat-value" style="color:var(--p1)">${p1}</div>
+        <div class="stat-label">Urgent (P1)</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(67,233,123,0.3);">
+        <div class="stat-value" style="color:var(--accent3)">${dueToday}</div>
+        <div class="stat-label">Due Today</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(67,233,123,0.3);">
+        <div class="stat-value" style="color:var(--accent3)">${completedThisWeek}</div>
+        <div class="stat-label">Done This Week</div>
+      </div>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--p1)">${p1}</div>
-      <div class="stat-label">Urgent (P1)</div>
+
+    <!-- COMPLETION RATE -->
+    <div class="stat-card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Weekly Completion Rate</div>
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:${completionRate >= 70 ? 'var(--accent3)' : completionRate >= 40 ? 'var(--p2)' : 'var(--accent2)'};">${completionRate}%</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:6px;height:8px;overflow:hidden;">
+        <div style="width:${completionRate}%;height:100%;background:${completionRate >= 70 ? 'var(--accent3)' : completionRate >= 40 ? 'var(--p2)' : 'var(--accent2)'};border-radius:6px;transition:width 0.5s;"></div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;">${completedThisWeek} completed of ${addedThisWeek} added this week</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--ai-complete)">${aiComplete}</div>
-      <div class="stat-label">AI Can Complete</div>
+
+    <!-- PROJECT BREAKDOWN -->
+    <div class="stat-card" style="margin-bottom:16px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">Project Breakdown</div>
+      ${projData.map(p => `
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:13px;">${p.name}</span>
+            <span style="font-size:13px;color:${p.color};font-weight:600;">${p.count} tasks</span>
+          </div>
+          <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
+            <div style="width:${Math.round((p.count/maxProj)*100)}%;height:100%;background:${p.color};border-radius:4px;"></div>
+          </div>
+        </div>`).join('')}
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--ai-assist)">${aiAssist}</div>
-      <div class="stat-label">AI Can Assist</div>
+
+    <!-- AI vs MANUAL -->
+    <div class="stat-card" style="margin-bottom:16px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">AI vs Manual</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+        <div style="background:rgba(67,233,123,0.1);border-radius:12px;padding:12px;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--ai-complete);">${aiComplete}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">AI Complete</div>
+        </div>
+        <div style="background:rgba(108,99,255,0.1);border-radius:12px;padding:12px;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--ai-assist);">${aiAssist}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">AI Assist</div>
+        </div>
+        <div style="background:rgba(255,101,132,0.1);border-radius:12px;padding:12px;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--manual);">${manual}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">Manual</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:var(--text2);text-align:center;">
+        ${aiPct}% of your tasks can be helped or completed by AI
+      </div>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--gne)">${gne}</div>
-      <div class="stat-label">GNE Tasks</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--caliber)">${caliber}</div>
-      <div class="stat-label">Caliber Tasks</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--personal)">${personal}</div>
-      <div class="stat-label">Personal Tasks</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--manual)">${manual}</div>
-      <div class="stat-label">Manual Only</div>
+
+    <!-- WHO ADDS MORE -->
+    <div class="stat-card" style="margin-bottom:16px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">Task Owners</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center;">
+        <div style="background:rgba(108,99,255,0.1);border-radius:12px;padding:14px;">
+          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);">${vijayCount}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">Vijay</div>
+        </div>
+        <div style="background:rgba(255,101,132,0.1);border-radius:12px;padding:14px;">
+          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent2);">${miaCount}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">Mia</div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -1528,7 +1625,7 @@ function renderTodayCard(task, type) {
 }
 
 async function quickComplete(taskId) {
-  await updateTask(taskId, { status: 'done' });
+  await updateTask(taskId, { status: 'done', completed_at: new Date().toISOString() });
   tasks = tasks.filter(t => t.id !== taskId);
   renderToday();
   renderTasks();
