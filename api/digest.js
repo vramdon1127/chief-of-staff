@@ -30,14 +30,45 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ── Pull settings (email, api keys) from Supabase ──────────
-    const settings = await sbFetch('settings?select=key,value');
-    const settingsMap = {};
-    (settings || []).forEach(s => { settingsMap[s.key] = s.value; });
+    // ── Pull all user profiles for digest sending ──────────────
+    // For now send to all users who have digest_email set
+    const profiles = await sbFetch('profiles?digest_email=not.is.null&select=id,digest_email,anthropic_key');
+    
+    if (!profiles || profiles.length === 0) {
+      return res.status(200).json({ message: 'No users with digest email configured' });
+    }
 
-    const toEmail = settingsMap['digest_email'];
-    const anthropicKey = settingsMap['anthropic_key'];
-    const resendKey = process.env.RESEND_API_KEY || settingsMap['resend_key'];
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) {
+      return res.status(500).json({ error: 'RESEND_API_KEY not configured in environment' });
+    }
+
+    let sent = 0;
+    let errors = [];
+
+    // Send digest to each user
+    for (const profile of profiles) {
+      try {
+        await sendDigestToUser(profile, resendKey);
+        sent++;
+      } catch(e) {
+        errors.push({ user: profile.id, error: e.message });
+      }
+    }
+
+    return res.status(200).json({ success: true, sent, errors });
+
+  } catch (e) {
+    console.error('Digest error:', e);
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// Helper: send digest to a single user
+async function sendDigestToUser(profile, resendKey) {
+    const toEmail = profile.digest_email;
+    const anthropicKey = profile.anthropic_key;
+    const settingsMap = { digest_email: toEmail, anthropic_key: anthropicKey };
 
     if (!toEmail || !anthropicKey || !resendKey) {
       return res.status(400).json({ 
@@ -280,16 +311,5 @@ FOCUS: [your recommendation here]`;
       return res.status(500).json({ error: 'Email send failed', details: emailData });
     }
 
-    return res.status(200).json({ 
-      success: true, 
-      sent_to: toEmail,
-      life_score: lifeScore,
-      tasks_due_today: dueTodayTasks.length,
-      email_id: emailData.id
-    });
-
-  } catch (e) {
-    console.error('Digest error:', e);
-    return res.status(500).json({ error: e.message });
-  }
+    // digest sent successfully for this user
 }
