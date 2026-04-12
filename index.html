@@ -1412,11 +1412,18 @@ async function renderStats() {
       return cat.keywords.some(k => text.includes(k));
     });
     const score = Math.min(matched.length, cat.goal);
-    const pct = Math.round((score / cat.goal) * 100);
+    const pct = Math.round((matched.length / cat.goal) * 100); // uncapped so overachievement flows into score
     return { ...cat, score, pct, matched: matched.length };
   });
 
-  const avgLifeScore = Math.round(lifeScores.reduce((a,b) => a + b.pct, 0) / lifeScores.length);
+  // Score math: base caps each category at 100%, but overachievement earns overflow credits
+  // that can partially offset zeros (up to 15pts credit per zero category)
+  const basePcts = lifeScores.map(c => Math.min(c.pct, 100));
+  const baseAvg = basePcts.reduce((a,b) => a + b, 0) / lifeScores.length;
+  const totalOverflow = lifeScores.reduce((a,c) => a + Math.max(0, c.pct - 100), 0);
+  const zeroCount = lifeScores.filter(c => c.pct === 0).length;
+  const overflowCredit = Math.min(totalOverflow * 0.05, zeroCount * 10);
+  const avgLifeScore = Math.min(100, Math.round(baseAvg + overflowCredit));
 
   el.innerHTML = `
     <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;">Dashboard</div>
@@ -1444,28 +1451,24 @@ async function renderStats() {
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
               <span style="font-size:11px;color:var(--text2);">${cat.matched}/${cat.goal}</span>
-              <span style="font-size:11px;font-weight:700;color:${cat.pct >= 100 ? cat.color : cat.pct >= 50 ? '#fbbf24' : '#ef4444'};">${cat.pct >= 100 ? '✓' : cat.pct >= 50 ? '~' : '!'}</span>
+              <span style="font-size:11px;font-weight:700;color:${cat.pct > 100 ? 'white' : cat.pct === 100 ? cat.color : cat.pct >= 50 ? '#fbbf24' : '#ef4444'};">${cat.pct > 100 ? '🔥' : cat.pct === 100 ? '✓' : cat.pct >= 50 ? '~' : '!'}</span>
             </div>
           </div>
-          <div style="background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;">
-            <div style="width:${Math.min(cat.pct,100)}%;height:100%;background:${cat.color};border-radius:4px;transition:width 0.5s;"></div>
+          <div style="background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;position:relative;">
+            <div style="width:${Math.min(cat.pct,100)}%;height:100%;background:${cat.color};border-radius:4px;transition:width 0.5s;${cat.pct > 100 ? 'box-shadow:0 0 6px ' + cat.color + ';' : ''}"></div>
+            ${cat.pct > 100 ? '<div style="position:absolute;right:0;top:0;height:100%;width:3px;background:white;opacity:0.6;border-radius:2px;"></div>' : ''}
           </div>
-          ${cat.pct < 50 ? `<div style="font-size:11px;color:var(--text2);margin-top:3px;padding-left:22px;">${cat.advice.low}</div>` : ''}
+          ${cat.pct > 100 ? '<div style="font-size:11px;margin-top:3px;padding-left:22px;color:' + cat.color + ';opacity:0.8;">+' + (cat.matched - cat.goal) + ' over goal — nice</div>' : ''}
+          ${cat.pct < 50 ? '<div style="font-size:11px;color:var(--text2);margin-top:3px;padding-left:22px;">' + cat.advice.low + '</div>' : ''}
         </div>`).join('')}
     </div>
 
     <!-- AI ADVISOR PLACEHOLDER -->
     <div id="aiAdvisorCard" class="stat-card" style="margin-bottom:16px;border-color:rgba(108,99,255,0.4);position:relative;overflow:hidden;">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-size:20px;">🧠</div>
-          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);">AI Advisor</div>
-        </div>
-        <button onclick="refreshAdvisor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          Refresh
-        </button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <div style="font-size:20px;">🧠</div>
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);">AI Advisor</div>
       </div>
       <div id="aiAdvisorContent" style="color:var(--text2);font-size:13px;">Analyzing your tasks...</div>
     </div>
