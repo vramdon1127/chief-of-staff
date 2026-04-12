@@ -2671,16 +2671,28 @@ function renderObMetrics() {
   const el = document.getElementById('ob-metrics-list');
   if (!el) return;
   el.innerHTML = obMetrics.map((m, i) => `
-    <div style="background:var(--surface);border:1px solid ${m.active ? m.color + '40' : 'var(--border)'};border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all 0.2s;" onclick="toggleMetric(${i})">
-      <span style="font-size:18px;">${m.icon}</span>
-      <div style="flex:1;">
-        <div style="font-size:14px;font-weight:500;color:${m.active ? 'var(--text)' : 'var(--text2)'};">${m.name}</div>
-        ${m.active ? `<div style="font-size:12px;color:var(--text2);">Goal: ${m.goal} task${m.goal !== 1 ? 's' : ''}/week</div>` : '<div style="font-size:12px;color:var(--text2);">Tap to enable</div>'}
+    <div style="background:var(--surface);border:1px solid ${m.active ? m.color + '40' : 'var(--border)'};border-radius:12px;padding:14px 16px;margin-bottom:8px;transition:all 0.2s;">
+      <div style="display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="toggleMetric(${i})">
+        <span style="font-size:18px;">${m.icon}</span>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:500;color:${m.active ? 'var(--text)' : 'var(--text2)'};">${m.name}</div>
+          ${m.active ? `<div style="font-size:12px;color:var(--text2);">Goal: ${m.goal} task${m.goal !== 1 ? 's' : ''}/week</div>` : '<div style="font-size:12px;color:var(--text2);">Tap to enable</div>'}
+        </div>
+        ${m.active ? `<input type="number" value="${m.goal}" min="1" max="20" onclick="event.stopPropagation()" onchange="obMetrics[${i}].goal=parseInt(this.value)" style="width:48px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center;outline:none;">` : ''}
+        <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${m.active ? m.color : 'var(--border)'};background:${m.active ? m.color : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          ${m.active ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+        </div>
       </div>
-      ${m.active ? `<input type="number" value="${m.goal}" min="1" max="20" onclick="event.stopPropagation()" onchange="obMetrics[${i}].goal=parseInt(this.value)" style="width:48px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center;outline:none;">` : ''}
-      <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${m.active ? m.color : 'var(--border)'};background:${m.active ? m.color : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        ${m.active ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-      </div>
+      ${m.active ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">What does ${m.name} look like in your life? <span style="opacity:0.6;">(optional)</span></div>
+          <input type="text" 
+            placeholder="e.g. ${m.name === 'Faith' ? 'church, prayer, Bible study' : m.name === 'Health' ? 'gym, walks, therapy' : m.name === 'Family' ? 'date nights, kids activities' : m.name === 'Recharge' ? 'reading, movies, rest' : 'describe your ' + m.name.toLowerCase() + ' activities'}"
+            value="${m.context || ''}"
+            onclick="event.stopPropagation()"
+            onchange="obMetrics[${i}].context=this.value"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+        </div>` : ''}
     </div>`).join('');
 }
 
@@ -2744,16 +2756,23 @@ async function completeOnboarding() {
     await sbClient.from('projects').insert(projectsToInsert);
 
     // Save life categories
-    const metricsToInsert = obMetrics.map((m, i) => ({
-      user_id: currentUserId,
-      name: m.name,
-      icon: m.icon,
-      color: m.color,
-      goal: m.goal,
-      keywords: m.keywords,
-      sort_order: i,
-      active: m.active,
-    }));
+    const metricsToInsert = obMetrics.map((m, i) => {
+      // Merge default keywords with any custom context the user typed
+      const customKeywords = m.context 
+        ? m.context.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length > 0)
+        : [];
+      const allKeywords = [...new Set([...m.keywords, ...customKeywords])];
+      return {
+        user_id: currentUserId,
+        name: m.name,
+        icon: m.icon,
+        color: m.color,
+        goal: m.goal,
+        keywords: allKeywords,
+        sort_order: i,
+        active: m.active,
+      };
+    });
     await sbClient.from('life_categories').insert(metricsToInsert);
 
     // Save API key locally
