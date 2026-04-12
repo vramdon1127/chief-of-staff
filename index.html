@@ -760,7 +760,7 @@
       <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:8px;">How do you measure a well-lived life?</div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:20px;">
         <div style="font-size:12px;color:var(--text2);line-height:1.7;">These are <strong style="color:var(--text);">dimensions of life</strong>, not hats. STWRD tracks how your tasks distribute across these areas each week — and scores your balance. Your hats feed into these categories automatically.</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:8px;opacity:0.7;">e.g. A GNE invoice → Work + Finance · Church task → Faith · Gym → Health</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:8px;opacity:0.7;">e.g. Client invoice → Work + Finance · Read scripture → Faith · Gym session → Health</div>
       </div>
       <div id="ob-metrics-list" style="margin-bottom:32px;"></div>
       <div style="display:flex;gap:10px;">
@@ -1358,7 +1358,7 @@ DUE: [YYYY-MM-DD if a date is mentioned, otherwise none]
 REASON: [one short sentence why]
 
 Priority guide: P1=urgent/today, P2=important/this week, P3=normal, P4=low/someday
-Category guide: AI Complete=AI can fully do it without Vijay, AI Assist=needs user's input, Manual=must be done by user alone
+Category guide: AI Complete=AI can fully do it without the user, AI Assist=needs user's input, Manual=must be done by user alone
 Due date guide: Extract any date mentioned. Today is ${new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'})}.
 - "today" or "tonight" or "this evening" = today's date
 - "tomorrow" = tomorrow's date
@@ -1439,9 +1439,9 @@ async function runAiTask(taskId) {
 
   try {
     const gneContext = `GNE CONTEXT: Luxury DJ/MC company in Dallas TX. Vijay's voice is warm, faith-aligned, personal. Key phrases: "We would be absolutely HONORED", "Can't wait to make it an amazing night!". Packages: Elegant ($2,600-$3,200), Signature ($3,600-$4,400), Luxurious ($5,000-$6,200). Tools: HoneyBook, VIBO. MCs: Caleb, Jono. Always write in first person as Vijay. End with a clear next step. Scheduling link: https://bit.ly/GNEVideoCall`;
-    const caliberContext = `CALIBER CONTEXT: Vijay is Director of Internal Controls at Caliber Collision. SOX compliance with PwC as external auditor and Protiviti as co-sourced IA. Key systems: Workday, CCC ONE, FastPath, Workiva, CertiTrack. Active work: UAR/SOD cycles, AP narrative, account reconciliation tool, DOA rollout. Key contacts: Grant Willard, Craig James, Amit Patel, Jessica Knabe, Yvette Dubey. Communication style: professional, concise, no filler. Go straight to the revision. Peer-level tone with auditors. Write in first person as Vijay.`;
+    const caliberContext = `CALIBER CONTEXT: Vijay is Director of Internal Controls at Caliber Collision. SOX compliance with PwC as external auditor and Protiviti as co-sourced IA. Key systems: Workday, CCC ONE, FastPath, Workiva, CertiTrack. Active work: UAR/SOD cycles, AP narrative, account reconciliation tool, DOA rollout. Key contacts: Grant Willard, Craig James, Amit Patel, Jessica Knabe, Yvette Dubey. Communication style: professional, concise, no filler. Go straight to the revision. Peer-level tone with auditors. Write in first person as the user.`;
     const projectContext = task.hat === 'GNE' ? gneContext : task.hat === 'Caliber' ? caliberContext : '';
-    const aiPrompt = `You are STWRD, Vijay Ramdon's personal AI. Complete this task fully and present the result clearly. ${projectContext}\n\nTask: ${task.cleaned_task || task.content}\n\nProvide the complete deliverable ready to use — draft the email, write the script, create the timeline, etc. Don't explain what you're doing, just do it.`;
+    const aiPrompt = `You are STWRD, the user's personal AI. Complete this task fully and present the result clearly. ${projectContext}\n\nTask: ${task.cleaned_task || task.content}\n\nProvide the complete deliverable ready to use — draft the email, write the script, create the timeline, etc. Don't explain what you're doing, just do it.`;
     const response = await fetch('/api/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1659,8 +1659,8 @@ async function renderStats() {
   const maxProj = Math.max(...projData.map(p => p.count), 1);
   const totalCat = aiComplete + aiAssist + manual || 1;
   const aiPct = Math.round(((aiComplete + aiAssist) / totalCat) * 100);
-  const vijayCount = active.filter(t => t.added_by === 'Vijay').length;
-  const miaCount = active.filter(t => t.added_by === 'Mia').length;
+  const myCount = active.filter(t => t.added_by === currentUser).length;
+  const teamCount = active.filter(t => t.added_by !== currentUser && t.added_by).length;
 
   // ── LIFE BALANCE SCORING ──────────────────────────────────
   const lifeCategories = [
@@ -1674,13 +1674,13 @@ async function renderStats() {
       name: 'Family', icon: '🏠', color: '#34d399',
       keywords: ['mia', 'baby', 'home', 'house', 'birthday', 'gift', 'party', 'nursery', 'paint', 'mattress', 'depot', 'crue', 'jada'],
       goal: 2, unit: 'tasks/week',
-      advice: { low: 'Family tasks are getting sidelined — Mia notices', high: 'Family is getting real attention this week' }
+      advice: { low: 'Family tasks are getting sidelined — easy to let slip', high: 'Family is getting real attention this week' }
     },
     {
       name: 'Health', icon: '💪', color: '#fb923c',
       keywords: ['workout', 'gym', 'exercise', 'run', 'walk', 'doctor', 'sleep', 'eat', 'diet', 'health', 'mental', 'meditat'],
       goal: 3, unit: 'tasks/week',
-      advice: { low: "No health tasks this week — Mia's watching 👀", high: "Taking care of yourself this week" }
+      advice: { low: 'No health tasks this week — easy to skip', high: 'Taking care of yourself this week' }
     },
     {
       name: 'Faith', icon: '🙏', color: '#a78bfa',
@@ -1703,8 +1703,8 @@ async function renderStats() {
     {
       name: 'Recharge', icon: '🎮', color: '#6b7280',
       keywords: ['game', 'video', 'play', 'rest', 'relax', 'netflix', 'movie', 'tv', 'break', 'vacation'],
-      goal: 1, unit: 'session/week — Mia says cap it here 😄',
-      advice: { low: "No recharge logged — or Mia deleted the evidence", high: "Getting rest — just not too much 😄" }
+      goal: 1, unit: 'session/week',
+      advice: { low: 'No recharge logged this week', high: 'Getting some rest in — good balance' }
     },
   ];
 
@@ -1739,7 +1739,7 @@ async function renderStats() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <div>
           <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Life Balance</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">Mia's idea 💡</div>
+          
         </div>
         <div style="text-align:center;">
           <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:${avgLifeScore >= 70 ? '#34d399' : avgLifeScore >= 40 ? '#fbbf24' : '#ef4444'};">${avgLifeScore}</div>
@@ -1855,12 +1855,12 @@ async function renderStats() {
       <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">Task Owners</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center;">
         <div style="background:rgba(108,99,255,0.1);border-radius:12px;padding:14px;">
-          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);">${vijayCount}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px;">Vijay</div>
+          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);">${myCount}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">You</div>
         </div>
         <div style="background:rgba(255,101,132,0.1);border-radius:12px;padding:14px;">
-          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent2);">${miaCount}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px;">Mia</div>
+          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent2);">${teamCount}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">Team</div>
         </div>
       </div>
     </div>
@@ -1901,7 +1901,7 @@ async function loadAiAdvisor(active, today, completionRate, completedThisWeek, l
     `[${t.hat}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
   ).join('\n');
 
-  const prompt = `You are STWRD, Vijay Ramdon's personal AI life manager. His wife Mia wants him to have better life balance. Analyze his tasks and life balance and give him 3 specific, actionable insights.
+  const prompt = `You are STWRD, ${currentUser}'s personal AI life manager. Analyze their tasks and life balance and give them 3 specific, actionable insights.
 
 His tasks right now:
 ${taskSummary}
@@ -1913,7 +1913,7 @@ Completed this week: ${completedThisWeek}
 Life balance this week (0-100% of weekly goal):
 ${(lifeScores||[]).map(c => c.name + ': ' + c.pct + '% (' + c.matched + '/' + c.goal + ' tasks)').join(', ')}
 
-Give exactly 3 insights — mix task productivity AND life balance. Be specific, mention actual task names, be direct and warm. Mia is watching 😄:
+Give exactly 3 insights — mix task productivity AND life balance. Be specific, mention actual task names, be direct and warm:
 INSIGHT1_EMOJI: [emoji]
 INSIGHT1_TITLE: [short bold title]
 INSIGHT1_BODY: [1-2 sentences of specific advice]
@@ -2700,7 +2700,7 @@ function renderObMetrics() {
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Keywords that signal ${m.name} in your tasks <span style="opacity:0.6;">(optional)</span></div>
           <input type="text" 
-            placeholder="e.g. ${m.name === 'Faith' ? 'church, prayer, pastor, devotion, Bible' : m.name === 'Health' ? 'gym, workout, run, doctor, therapy' : m.name === 'Family' ? 'Mia, kids, date night, school, home' : m.name === 'Recharge' ? 'movie, rest, vacation, game' : m.name === 'Finance' ? 'invoice, bill, budget, tax, payment' : m.name === 'Growth' ? 'course, book, learn, build, practice' : 'words that appear in your ' + m.name.toLowerCase() + ' tasks'}"
+            placeholder="e.g. ${m.name === 'Faith' ? 'church, prayer, pastor, devotion, Bible' : m.name === 'Health' ? 'gym, workout, run, doctor, therapy' : m.name === 'Family' ? 'spouse, kids, date night, school, home' : m.name === 'Recharge' ? 'movie, rest, vacation, game' : m.name === 'Finance' ? 'invoice, bill, budget, tax, payment' : m.name === 'Growth' ? 'course, book, learn, build, practice' : 'words that appear in your ' + m.name.toLowerCase() + ' tasks'}"
             value="${m.context || ''}"
             onclick="event.stopPropagation()"
             onchange="obMetrics[${i}].context=this.value"
@@ -3058,7 +3058,7 @@ function toggleMic() {
   <!-- MESSAGES -->
   <div id="chatMessages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;">
     <div style="background:var(--surface2);border-radius:16px 16px 16px 4px;padding:14px;max-width:85%;font-size:14px;line-height:1.5;">
-      Hey Vijay! I'm STWRD, your personal AI life manager. I have full context on all your tasks, hats, and priorities. What do you need?
+      Hey! I'm STWRD, your personal AI life manager. I have full context on all your tasks, hats, and priorities. What do you need?
     </div>
   </div>
 
