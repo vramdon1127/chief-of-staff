@@ -1443,7 +1443,7 @@ async function processTask() {
 
   try {
     const taskHistory = tasks.slice(0, 50).map(t => 
-      `[${t.hat}][${t.category}][${t.priority}] ${t.cleaned_task || t.content}`
+      `[${t.project}][${t.category}][${t.priority}] ${t.cleaned_task || t.content}`
     ).join('\n');
 
     // Build dynamic project knowledge context
@@ -1509,7 +1509,7 @@ Added by: ${currentUser}`;
       content: raw,
       cleaned_task: get('TASK'),
       category: get('CATEGORY'),
-      hat: get('PROJECT'),
+      project: get('PROJECT'),
       priority: get('PRIORITY'),
       due_date: dueDate,
       status: 'todo',
@@ -1523,12 +1523,12 @@ Added by: ${currentUser}`;
     document.getElementById(tempId)?.remove();
 
     tasks.unshift(newTask);
-    if (currentHat === newTask.hat) renderHatTasks();
+    if (currentHat === newTask.project) renderHatTasks();
     input.value = '';
     input.style.height = 'auto';
     renderTasks();
     renderStats();
-    showToast(`✓ Task added to ${task.hat}`);
+    showToast(`✓ Task added to ${task.project}`);
 
   } catch (e) {
     document.getElementById(tempId)?.remove();
@@ -1556,7 +1556,7 @@ async function runAiTask(taskId) {
   try {
     const gneContext = `GNE CONTEXT: Luxury DJ/MC company in Dallas TX. Vijay's voice is warm, faith-aligned, personal. Key phrases: "We would be absolutely HONORED", "Can't wait to make it an amazing night!". Packages: Elegant ($2,600-$3,200), Signature ($3,600-$4,400), Luxurious ($5,000-$6,200). Tools: HoneyBook, VIBO. MCs: Caleb, Jono. Always write in first person as Vijay. End with a clear next step. Scheduling link: https://bit.ly/GNEVideoCall`;
     const caliberContext = `CALIBER CONTEXT: Vijay is Director of Internal Controls at Caliber Collision. SOX compliance with PwC as external auditor and Protiviti as co-sourced IA. Key systems: Workday, CCC ONE, FastPath, Workiva, CertiTrack. Active work: UAR/SOD cycles, AP narrative, account reconciliation tool, DOA rollout. Key contacts: Grant Willard, Craig James, Amit Patel, Jessica Knabe, Yvette Dubey. Communication style: professional, concise, no filler. Go straight to the revision. Peer-level tone with auditors. Write in first person as the user.`;
-    const projectContext = task.hat === 'GNE' ? gneContext : task.hat === 'Caliber' ? caliberContext : '';
+    const projectContext = task.project === 'GNE' ? gneContext : task.project === 'Caliber' ? caliberContext : '';
     const aiPrompt = `You are STWRD, the user's personal AI. Complete this task fully and present the result clearly. ${projectContext}\n\nTask: ${task.cleaned_task || task.content}\n\nProvide the complete deliverable ready to use — draft the email, write the script, create the timeline, etc. Don't explain what you're doing, just do it.`;
     const response = await fetch('/api/process', {
       method: 'POST',
@@ -1638,8 +1638,8 @@ function renderHatBuckets() {
   if (!el) return;
   const hatsToRender = userHats.length > 0 ? userHats : HATS;
   el.innerHTML = hatsToRender.map(p => {
-    const count = tasks.filter(t => t.hat === p.name).length;
-    const p1count = tasks.filter(t => t.hat === p.name && t.priority === 'P1').length;
+    const count = tasks.filter(t => t.project === p.name).length;
+    const p1count = tasks.filter(t => t.project === p.name && t.priority === 'P1').length;
     return `
     <div onclick="openHat('${p.name}')" style="
       background:var(--surface);
@@ -1697,7 +1697,7 @@ function setHatFilter(filter, btn) {
 
 function renderHatTasks() {
   const list = document.getElementById('hatTaskList');
-  let filtered = tasks.filter(t => t.hat === currentHat);
+  let filtered = tasks.filter(t => t.project === currentHat);
   if (currentHatFilter !== 'all') filtered = filtered.filter(t => t.category === currentHatFilter);
 
   if (filtered.length === 0) {
@@ -1768,10 +1768,10 @@ async function renderStats() {
   const addedThisWeek = active.filter(t => t.created_at >= weekAgoStr).length + completedThisWeek;
   const completionRate = addedThisWeek > 0 ? Math.round((completedThisWeek / addedThisWeek) * 100) : 0;
   const projData = [
-    { name: 'GNE', color: 'var(--gne)', count: active.filter(t => t.hat === 'GNE').length },
-    { name: 'Caliber', color: 'var(--caliber)', count: active.filter(t => t.hat === 'Caliber').length },
-    { name: 'Personal', color: 'var(--personal)', count: active.filter(t => t.hat === 'Personal').length },
-    { name: 'ServeAnts', color: 'var(--servents)', count: active.filter(t => t.hat === 'ServeAnts').length },
+    { name: 'GNE', color: 'var(--gne)', count: active.filter(t => t.project === 'GNE').length },
+    { name: 'Caliber', color: 'var(--caliber)', count: active.filter(t => t.project === 'Caliber').length },
+    { name: 'Personal', color: 'var(--personal)', count: active.filter(t => t.project === 'Personal').length },
+    { name: 'ServeAnts', color: 'var(--servents)', count: active.filter(t => t.project === 'ServeAnts').length },
   ];
   const maxProj = Math.max(...projData.map(p => p.count), 1);
   const totalCat = aiComplete + aiAssist + manual || 1;
@@ -1829,7 +1829,7 @@ async function renderStats() {
   const allThisWeek = [...active, ...completed.filter(t => t.created_at >= weekAgoStr)];
   const lifeScores = lifeCategories.map(cat => {
     const matched = allThisWeek.filter(t => {
-      const text = ((t.cleaned_task || t.content) + ' ' + (t.hat || '')).toLowerCase();
+      const text = ((t.cleaned_task || t.content) + ' ' + (t.project || '')).toLowerCase();
       return cat.keywords.some(k => text.includes(k));
     });
     const score = Math.min(matched.length, cat.goal);
@@ -1936,7 +1936,7 @@ async function renderStats() {
     <div class="stat-card" style="margin-bottom:16px;">
       <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">Hat Breakdown</div>
       ${projData.map(p => `
-        <div style="margin-bottom:12px;cursor:pointer;" onclick="showDrilldown('${p.name} Tasks', t => t.hat === '${p.name}')">
+        <div style="margin-bottom:12px;cursor:pointer;" onclick="showDrilldown('${p.name} Tasks', t => t.project === '${p.name}')">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <span style="font-size:13px;color:${p.color};font-weight:600;">${p.name} →</span>
             <span style="font-size:13px;color:var(--text2);">${p.count} tasks</span>
@@ -2015,7 +2015,7 @@ async function loadAiAdvisor(active, today, completionRate, completedThisWeek, l
   }
 
   const taskSummary = active.slice(0, 30).map(t =>
-    `[${t.hat}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
+    `[${t.project}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
   ).join('\n');
 
   const personalCtx = currentUserProfile?.ai_context ? `\nPersonal context: ${currentUserProfile.ai_context}` : '';
@@ -2132,7 +2132,7 @@ function openEditModal(taskId) {
   editingTaskId = taskId;
   editingPriority = task.priority || 'P3';
   document.getElementById('editTaskName').value = task.cleaned_task || task.content;
-  document.getElementById('editHat').value = task.hat || 'Personal';
+  document.getElementById('editHat').value = task.project || 'Personal';
   document.getElementById('editCategory').value = task.category || 'Manual';
   // Highlight current priority
   document.querySelectorAll('.priority-btn').forEach(btn => {
@@ -2168,7 +2168,7 @@ async function saveEdit() {
   const newPriority = editingPriority;
 
   // Check if anything changed that needs a correction logged
-  const projectChanged = newProject !== task.hat;
+  const projectChanged = newProject !== task.project;
   const categoryChanged = newCategory !== task.category;
   const priorityChanged = newPriority !== task.priority;
 
@@ -2178,9 +2178,9 @@ async function saveEdit() {
       await sbFetch('corrections', 'POST', {
         user_id: currentUserId,
         original_task: task.cleaned_task || task.content,
-        original_project: task.hat,
+        original_project: task.project,
         original_category: task.category,
-        corrected_hat: newProject,
+        corrected_project: newProject,
         corrected_category: newCategory,
         corrected_priority: newPriority
       });
@@ -2191,7 +2191,7 @@ async function saveEdit() {
   const newDueDate = document.getElementById('editDueDate').value || null;
   const updates = {
     cleaned_task: newName,
-    hat: newProject,
+    project: newProject,
     category: newCategory,
     priority: newPriority,
     due_date: newDueDate
@@ -2251,7 +2251,7 @@ function renderToday() {
 
 function renderTodayCard(task, type) {
   const projColors = { GNE: 'var(--gne)', Caliber: 'var(--caliber)', Personal: 'var(--personal)', ServeAnts: 'var(--servents)' };
-  const color = projColors[task.hat] || 'var(--accent)';
+  const color = projColors[task.project] || 'var(--accent)';
   const borderColor = type === 'overdue' ? 'var(--p1)' : type === 'today' ? 'var(--accent3)' : 'var(--border)';
   const dueLabel = type === 'overdue' ? `Due ${task.due_date}` : type === 'upcoming' ? `Due ${task.due_date}` : 'Due Today';
   
@@ -2260,7 +2260,7 @@ function renderTodayCard(task, type) {
     <div style="flex:1;min-width:0;">
       <div style="font-size:14px;font-weight:500;margin-bottom:4px;">${task.cleaned_task || task.content}</div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <span style="font-size:11px;color:${color};font-weight:600;">${task.hat}</span>
+        <span style="font-size:11px;color:${color};font-weight:600;">${task.project}</span>
         <span style="font-size:11px;color:var(--text2);">·</span>
         <span style="font-size:11px;color:${type === 'overdue' ? 'var(--p1)' : 'var(--text2)'};">${dueLabel}</span>
       </div>
@@ -2301,7 +2301,7 @@ function showDrilldown(title, filterFn) {
     const projColors = { GNE: 'var(--gne)', Caliber: 'var(--caliber)', Personal: 'var(--personal)', ServeAnts: 'var(--servents)' };
     const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
     const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
-    const projColor = projColors[task.hat] || 'var(--accent)';
+    const projColor = projColors[task.project] || 'var(--accent)';
     return `
     <div class="task-card">
       <div class="task-card-top">
@@ -2311,7 +2311,7 @@ function showDrilldown(title, filterFn) {
         <div class="task-body">
           <div class="task-title">${task.cleaned_task || task.content}</div>
           <div class="task-meta">
-            <span style="font-size:11px;color:${projColor};font-weight:600;">${task.hat || ''}</span>
+            <span style="font-size:11px;color:${projColor};font-weight:600;">${task.project || ''}</span>
             ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
             ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
             ${task.due_date ? `<span class="tag" style="background:rgba(108,99,255,0.1);color:var(--accent);">📅 ${task.due_date.split('-').slice(1).concat(task.due_date.split('-')[0]).join('/')}</span>` : ''}
@@ -2347,7 +2347,7 @@ async function showCompletedDrilldown(since) {
     const projColors = { GNE: 'var(--gne)', Caliber: 'var(--caliber)', Personal: 'var(--personal)', ServeAnts: 'var(--servents)' };
 
     list.innerHTML = completed.map(task => {
-      const projColor = projColors[task.hat] || 'var(--accent)';
+      const projColor = projColors[task.project] || 'var(--accent)';
       const completedDate = task.completed_at ? new Date(task.completed_at).toLocaleDateString('en-US', {month:'short', day:'numeric', timeZone:'America/Chicago'}) : '';
       return `
       <div class="task-card" style="opacity:0.8;">
@@ -2358,7 +2358,7 @@ async function showCompletedDrilldown(since) {
           <div class="task-body">
             <div class="task-title" style="text-decoration:line-through;color:var(--text2);">${task.cleaned_task || task.content}</div>
             <div class="task-meta">
-              <span style="font-size:11px;color:${projColor};font-weight:600;">${task.hat || ''}</span>
+              <span style="font-size:11px;color:${projColor};font-weight:600;">${task.project || ''}</span>
               ${completedDate ? `<span style="font-size:11px;color:var(--text2);">✓ ${completedDate}</span>` : ''}
             </div>
           </div>
@@ -2459,10 +2459,10 @@ async function saveWeeklySnapshot() {
     const completionRate = addedCount > 0 ? Math.round((completedCount / addedCount) * 100) : 0;
 
     const projCounts = {
-      gne: active.filter(t => t.hat === 'GNE').length,
-      caliber: active.filter(t => t.hat === 'Caliber').length,
-      personal: active.filter(t => t.hat === 'Personal').length,
-      serveants: active.filter(t => t.hat === 'ServeAnts').length,
+      gne: active.filter(t => t.project === 'GNE').length,
+      caliber: active.filter(t => t.project === 'Caliber').length,
+      personal: active.filter(t => t.project === 'Personal').length,
+      serveants: active.filter(t => t.project === 'ServeAnts').length,
     };
 
     // Life balance scores
@@ -2484,7 +2484,7 @@ async function saveWeeklySnapshot() {
     const lifeScores = {};
     lifeCategories.forEach(cat => {
       const matched = allThisWeek.filter(t => {
-        const text = ((t.cleaned_task || t.content) + ' ' + (t.hat || '')).toLowerCase();
+        const text = ((t.cleaned_task || t.content) + ' ' + (t.project || '')).toLowerCase();
         return cat.keywords.some(k => text.includes(k));
       }).length;
       const pct = Math.round((matched / cat.goal) * 100);
@@ -3104,7 +3104,7 @@ async function sendChat() {
 
   // Build context
   const taskSummary = tasks.slice(0, 40).map(t =>
-    `[${t.hat}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
+    `[${t.project}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
   ).join('\n');
 
   const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', timeZone:'America/Chicago' });
