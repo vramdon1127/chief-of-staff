@@ -991,7 +991,8 @@ async function processTask() {
   loadingEl.className = 'loading-card';
   loadingEl.id = tempId;
   loadingEl.innerHTML = `<div class="spinner"></div><div class="loading-text">Claude is analyzing: "${raw.substring(0,50)}..."</div>`;
-  document.getElementById('taskList').prepend(loadingEl);
+  const listEl = document.getElementById('projectBuckets');
+  if (listEl) listEl.prepend(loadingEl);
 
   try {
     const taskHistory = tasks.slice(0, 50).map(t => 
@@ -1072,6 +1073,7 @@ Added by: ${currentUser}`;
     document.getElementById(tempId)?.remove();
 
     tasks.unshift(newTask);
+    if (currentProject === newTask.project) renderProjectTasks();
     input.value = '';
     input.style.height = 'auto';
     renderTasks();
