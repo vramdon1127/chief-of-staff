@@ -2709,9 +2709,10 @@ function renderObMetrics() {
       </div>
       ${m.active ? `
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Keywords that signal ${m.name} in your tasks <span style="opacity:0.6;">(optional)</span></div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Keywords that signal ${m.name} <span style="opacity:0.6;">(optional)</span></div>
+          <div style="font-size:11px;color:var(--text2);opacity:0.6;margin-bottom:6px;">Use names of people, places, tools, or short phrases — not full sentences</div>
           <input type="text" 
-            placeholder="e.g. ${m.name === 'Faith' ? 'church, prayer, pastor, devotion, Bible' : m.name === 'Health' ? 'gym, workout, run, doctor, therapy' : m.name === 'Family' ? 'spouse, kids, date night, school, home' : m.name === 'Recharge' ? 'movie, rest, vacation, game' : m.name === 'Personal Finance' ? 'budget, debt, savings, mortgage, bills, credit card' : m.name === 'Growth' ? 'course, book, learn, build, practice' : 'words that appear in your ' + m.name.toLowerCase() + ' tasks'}"
+            placeholder="e.g. ${m.name === 'Faith' ? 'your church name, pastor, Bible, prayer group' : m.name === 'Health' ? 'gym name, workout type, doctor, therapist' : m.name === 'Family' ? 'spouse name, kids names, date night, school' : m.name === 'Recharge' ? 'hobby, show name, game, vacation' : m.name === 'Personal Finance' ? 'budget, debt, savings, mortgage — not business invoices' : m.name === 'Growth' ? 'course name, skill, book topic, app name' : m.name === 'Work' ? 'company name, tools, acronyms you use at work' : 'names of people, places, or tools in this area'}"
             value="${m.context || ''}"
             onclick="event.stopPropagation()"
             onchange="obMetrics[${i}].context=this.value"
