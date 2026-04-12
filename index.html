@@ -14,22 +14,31 @@
     --surface: #12121a;
     --surface2: #1a1a26;
     --border: #2a2a3d;
-    --accent: #6c63ff;
-    --accent2: #ff6584;
-    --accent3: #43e97b;
+    --accent: #7c6fef;
     --text: #f0f0ff;
     --text2: #8888aa;
-    --gne: #ff6584;
-    --caliber: #6c63ff;
-    --personal: #43e97b;
-    --servents: #ffa94d;
-    --ai-complete: #43e97b;
-    --ai-assist: #6c63ff;
-    --manual: #ff6584;
-    --p1: #ff4444;
-    --p2: #ff9900;
-    --p3: #6c63ff;
-    --p4: #8888aa;
+
+    /* PROJECT COLORS — each unique, never reused elsewhere */
+    --gne: #f472b6;         /* soft pink — GNE only */
+    --caliber: #60a5fa;     /* sky blue — Caliber only */
+    --personal: #34d399;    /* emerald — Personal only */
+    --servents: #fb923c;    /* orange — ServeAnts only */
+
+    /* PRIORITY COLORS — severity scale, red reserved for P1 only */
+    --p1: #ef4444;          /* red — urgent, danger */
+    --p2: #f59e0b;          /* amber — important */
+    --p3: #a78bfa;          /* soft purple — normal */
+    --p4: #6b7280;          /* gray — low */
+
+    /* CATEGORY COLORS — action-oriented */
+    --ai-complete: #10b981; /* green — AI can do it */
+    --ai-assist: #38bdf8;   /* light blue — AI helps */
+    --manual: #94a3b8;      /* slate — human only */
+
+    /* STATUS */
+    --done: #10b981;
+    --accent2: #f472b6;
+    --accent3: #10b981;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -182,8 +191,8 @@
   }
 
   @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255,101,132,0.4); }
-    50% { box-shadow: 0 0 0 8px rgba(255,101,132,0); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
   }
 
   .submit-btn {
@@ -370,19 +379,22 @@
     letter-spacing: 0.3px;
   }
 
-  .tag-project-gne { background: rgba(255,101,132,0.15); color: var(--gne); }
-  .tag-project-caliber { background: rgba(108,99,255,0.15); color: var(--caliber); }
-  .tag-project-personal { background: rgba(67,233,123,0.15); color: var(--personal); }
-  .tag-project-servants { background: rgba(255,169,77,0.15); color: var(--servents); }
+  /* PROJECT TAGS */
+  .tag-project-gne { background: rgba(244,114,182,0.15); color: var(--gne); }
+  .tag-project-caliber { background: rgba(96,165,250,0.15); color: var(--caliber); }
+  .tag-project-personal { background: rgba(52,211,153,0.15); color: var(--personal); }
+  .tag-project-servants { background: rgba(251,146,60,0.15); color: var(--servents); }
 
-  .tag-cat-ai-complete { background: rgba(67,233,123,0.15); color: var(--ai-complete); }
-  .tag-cat-ai-assist { background: rgba(108,99,255,0.15); color: var(--ai-assist); }
-  .tag-cat-manual { background: rgba(255,101,132,0.15); color: var(--manual); }
+  /* CATEGORY TAGS */
+  .tag-cat-ai-complete { background: rgba(16,185,129,0.15); color: var(--ai-complete); }
+  .tag-cat-ai-assist { background: rgba(56,189,248,0.15); color: var(--ai-assist); }
+  .tag-cat-manual { background: rgba(148,163,184,0.15); color: var(--manual); }
 
-  .tag-p1 { background: rgba(255,68,68,0.15); color: var(--p1); }
-  .tag-p2 { background: rgba(255,153,0,0.15); color: var(--p2); }
-  .tag-p3 { background: rgba(108,99,255,0.15); color: var(--p3); }
-  .tag-p4 { background: rgba(136,136,170,0.15); color: var(--p4); }
+  /* PRIORITY TAGS — red only for P1 */
+  .tag-p1 { background: rgba(239,68,68,0.15); color: var(--p1); }
+  .tag-p2 { background: rgba(245,158,11,0.15); color: var(--p2); }
+  .tag-p3 { background: rgba(167,139,250,0.15); color: var(--p3); }
+  .tag-p4 { background: rgba(107,114,128,0.15); color: var(--p4); }
 
   .tag-added-by {
     background: var(--surface2);
@@ -1187,6 +1199,12 @@ const PROJECTS = [
   { name: 'Personal', icon: '🏠', color: 'var(--personal)' },
   { name: 'ServeAnts', icon: '📊', color: 'var(--servents)' },
 ];
+
+// Color lookup helper
+function projectColor(name) {
+  const map = { GNE: 'var(--gne)', Caliber: 'var(--caliber)', Personal: 'var(--personal)', ServeAnts: 'var(--servents)' };
+  return map[name] || 'var(--accent)';
+}
 
 let currentProject = null;
 let currentProjectFilter = 'all';
