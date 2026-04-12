@@ -2940,7 +2940,20 @@ function updateApiInstructions() {
 
 function copyAiPrompt() {
   const text = '"Summarize what you know about my life, work, family, and goals in 3-4 sentences."';
-  navigator.clipboard.writeText(text).then(() => showToast('✓ Prompt copied — paste it into your AI'));
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('[onclick="copyAiPrompt()"]');
+    if (btn) {
+      const original = btn.innerHTML;
+      btn.innerHTML = '✓ Copied!';
+      btn.style.color = 'var(--personal)';
+      btn.style.borderColor = 'var(--personal)';
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 2000);
+    }
+  });
 }
 
 function obNext(step) {
