@@ -1131,7 +1131,15 @@ const SUPABASE_URL = 'https://fnnegalrrdzcgoelljmi.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZubmVnYWxycmR6Y2dvZWxsam1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NDMwNjksImV4cCI6MjA5MTUxOTA2OX0.bhgk6czCQYTuUGnu5Zv7pml9uMuPrp4I1VBSzVIHwqw';
 
 // ─── SUPABASE AUTH CLIENT ─────────────────────────────────────
-const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    storageKey: 'stwrd-auth',
+    storage: window.localStorage,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  }
+});
 
 // ─── STATE ────────────────────────────────────────────────────
 let tasks = [];
@@ -1616,7 +1624,8 @@ function renderTasks() {
 function renderHatBuckets() {
   const el = document.getElementById('hatBuckets');
   if (!el) return;
-  el.innerHTML = HATS.map(p => {
+  const hatsToRender = userHats.length > 0 ? userHats : HATS;
+  el.innerHTML = hatsToRender.map(p => {
     const count = tasks.filter(t => t.hat === p.name).length;
     const p1count = tasks.filter(t => t.hat === p.name && t.priority === 'P1').length;
     return `
