@@ -793,6 +793,50 @@
   </button>
 </nav>
 
+<!-- EDIT TASK MODAL -->
+<div class="modal-overlay" id="editModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-title">✏️ Edit Task</div>
+    <div class="modal-sub">Changes will be logged to help Claude learn</div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">TASK NAME</label>
+      <textarea id="editTaskName" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;resize:none;outline:none;"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div>
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">PROJECT</label>
+        <select id="editProject" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;">
+          <option value="GNE">🎵 GNE</option>
+          <option value="Caliber">🔧 Caliber</option>
+          <option value="Personal">🏠 Personal</option>
+          <option value="ServeAnts">📊 ServeAnts</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">CATEGORY</label>
+        <select id="editCategory" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;">
+          <option value="AI Complete">🤖 AI Complete</option>
+          <option value="AI Assist">🤝 AI Assist</option>
+          <option value="Manual">✋ Manual</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">PRIORITY</label>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+        <button onclick="selectPriority('P1',this)" class="priority-btn" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--p1);font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">P1</button>
+        <button onclick="selectPriority('P2',this)" class="priority-btn" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--p2);font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">P2</button>
+        <button onclick="selectPriority('P3',this)" class="priority-btn" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--p3);font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">P3</button>
+        <button onclick="selectPriority('P4',this)" class="priority-btn" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--p4);font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">P4</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn primary" onclick="saveEdit()">Save Changes</button>
+      <button class="modal-btn secondary" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- AI RESULT MODAL -->
 <div class="modal-overlay" id="aiModal" style="display:none;">
   <div class="modal">
@@ -822,11 +866,13 @@ let currentAiTaskId = null;
 
 // ─── INIT ─────────────────────────────────────────────────────
 let knowledgeBase = {};
+let corrections = [];
 
 window.addEventListener('load', () => {
   const saved = localStorage.getItem('apiKey');
   if (saved) document.getElementById('apiKeyInput').value = saved;
   loadKnowledge();
+  loadCorrections();
   loadTasks();
   setupRealtime();
 });
@@ -838,6 +884,13 @@ async function loadKnowledge() {
       data.forEach(row => { knowledgeBase[row.project] = row.context; });
     }
   } catch(e) { console.error('Knowledge load failed:', e); }
+}
+
+async function loadCorrections() {
+  try {
+    const data = await sbFetch('corrections?order=created_at.desc&limit=30');
+    corrections = data || [];
+  } catch(e) { console.error('Corrections load failed:', e); }
 }
 
 // ─── REALTIME POLLING ─────────────────────────────────────────
@@ -948,6 +1001,9 @@ SERVEANTS: ${sa}
 
 RECENT TASK HISTORY (use these patterns to categorize accurately):
 ${taskHistory || 'No previous tasks yet'}
+
+CORRECTIONS (Vijay manually fixed these — learn from them and never repeat these mistakes):
+${corrections.length > 0 ? corrections.map(c => `"${c.original_task}" was moved from ${c.original_project}/${c.original_category} → ${c.corrected_project}/${c.corrected_category}`).join('\n') : 'No corrections yet'}
 
 Given this raw task, respond ONLY in this exact format with no extra text:
 TASK: [cleaned, concise, actionable version of the task]
@@ -1192,6 +1248,7 @@ function renderProjectTasks() {
           </div>
           <div class="task-actions">
             ${isAiComplete ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}')">🤖 Run with AI</button>` : ''}
+            <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
             <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
           </div>
         </div>
@@ -1290,6 +1347,90 @@ function handleKey(e) {
     e.preventDefault();
     processTask();
   }
+}
+
+// ─── EDIT MODAL ───────────────────────────────────────────────
+let editingTaskId = null;
+let editingPriority = 'P3';
+
+function openEditModal(taskId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+  editingTaskId = taskId;
+  editingPriority = task.priority || 'P3';
+  document.getElementById('editTaskName').value = task.cleaned_task || task.content;
+  document.getElementById('editProject').value = task.project || 'Personal';
+  document.getElementById('editCategory').value = task.category || 'Manual';
+  // Highlight current priority
+  document.querySelectorAll('.priority-btn').forEach(btn => {
+    btn.style.background = btn.textContent === editingPriority ? 'var(--accent)' : 'var(--surface2)';
+    btn.style.color = btn.textContent === editingPriority ? 'white' : `var(--${btn.textContent.toLowerCase()})`;
+  });
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function selectPriority(p, btn) {
+  editingPriority = p;
+  document.querySelectorAll('.priority-btn').forEach(b => {
+    b.style.background = 'var(--surface2)';
+    b.style.color = `var(--${b.textContent.toLowerCase()})`;
+  });
+  btn.style.background = 'var(--accent)';
+  btn.style.color = 'white';
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+  editingTaskId = null;
+}
+
+async function saveEdit() {
+  const task = tasks.find(t => t.id === editingTaskId);
+  if (!task) return;
+
+  const newName = document.getElementById('editTaskName').value.trim();
+  const newProject = document.getElementById('editProject').value;
+  const newCategory = document.getElementById('editCategory').value;
+  const newPriority = editingPriority;
+
+  // Check if anything changed that needs a correction logged
+  const projectChanged = newProject !== task.project;
+  const categoryChanged = newCategory !== task.category;
+  const priorityChanged = newPriority !== task.priority;
+
+  if (projectChanged || categoryChanged || priorityChanged) {
+    // Log correction to help Claude learn
+    try {
+      await sbFetch('corrections', 'POST', {
+        original_task: task.cleaned_task || task.content,
+        original_project: task.project,
+        original_category: task.category,
+        corrected_project: newProject,
+        corrected_category: newCategory,
+        corrected_priority: newPriority
+      });
+    } catch(e) { console.error('Correction log failed:', e); }
+  }
+
+  // Update the task
+  const updates = {
+    cleaned_task: newName,
+    project: newProject,
+    category: newCategory,
+    priority: newPriority
+  };
+
+  await updateTask(editingTaskId, updates);
+  
+  // Update local state
+  const idx = tasks.findIndex(t => t.id === editingTaskId);
+  if (idx !== -1) tasks[idx] = { ...tasks[idx], ...updates };
+
+  closeEditModal();
+  renderTasks();
+  if (currentProject) renderProjectTasks();
+  renderStats();
+  showToast(projectChanged ? `✓ Moved to ${newProject} — Claude will learn from this` : '✓ Task updated');
 }
 
 function loadKnowledgeEditor() {
