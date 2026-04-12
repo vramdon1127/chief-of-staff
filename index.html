@@ -787,6 +787,19 @@
       </div>
     </div>
     <div class="settings-section">
+      <div class="settings-row" style="flex-direction:column;align-items:flex-start;cursor:default;">
+        <div class="settings-label" style="font-weight:600;margin-bottom:4px;">📬 Daily Digest Email</div>
+        <div class="settings-value" style="margin-bottom:8px;">Delivered at 7am CT every morning</div>
+        <input type="email" class="api-input" id="digestEmailInput" placeholder="you@email.com">
+        <div class="settings-label" style="font-weight:600;margin-top:12px;margin-bottom:4px;">Resend API Key</div>
+        <div class="settings-value" style="margin-bottom:8px;">Get a free key at resend.com</div>
+        <input type="password" class="api-input" id="resendKeyInput" placeholder="re_...">
+        <button class="save-btn" onclick="saveDigestSettings()">Save & Enable Digest</button>
+        <button onclick="testDigest()" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">Send Test Email Now</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <div class="settings-row" onclick="clearDone()">
         <div class="settings-label">Clear Completed Tasks</div>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
@@ -1690,7 +1703,7 @@ function showView(name) {
   document.getElementById(`nav-${name}`).classList.add('active');
   if (name === 'stats') renderStats();
   if (name === 'progress') renderProgress();
-  if (name === 'settings') loadKnowledgeEditor();
+  if (name === 'settings') { loadKnowledgeEditor(); loadDigestSettings(); }
   if (name === 'today') renderToday();
 }
 
@@ -2428,6 +2441,55 @@ Keep responses concise but complete. Use bullet points for lists.`;
     typing.remove();
     appendMessage('Something went wrong. Please try again.', false);
   }
+}
+
+
+// ─── DIGEST SETTINGS ──────────────────────────────────────────
+async function saveDigestSettings() {
+  const email = document.getElementById('digestEmailInput').value.trim();
+  const resendKey = document.getElementById('resendKeyInput').value.trim();
+  if (!email) { showToast('⚠️ Enter your email address'); return; }
+  if (!resendKey) { showToast('⚠️ Enter your Resend API key'); return; }
+
+  try {
+    // Upsert both settings into Supabase settings table
+    await sbFetch('settings?key=eq.digest_email', 'DELETE');
+    await sbFetch('settings?key=eq.resend_key', 'DELETE');
+    await sbFetch('settings?key=eq.anthropic_key', 'DELETE');
+    await sbFetch('settings', 'POST', { key: 'digest_email', value: email });
+    await sbFetch('settings', 'POST', { key: 'resend_key', value: resendKey });
+    // Also save anthropic key so digest cron can use it
+    const apiKey = localStorage.getItem('apiKey');
+    if (apiKey) await sbFetch('settings', 'POST', { key: 'anthropic_key', value: apiKey });
+    showToast('✓ Digest enabled — first email tomorrow at 7am CT');
+  } catch(e) {
+    showToast('❌ Save failed — make sure settings table exists');
+  }
+}
+
+async function testDigest() {
+  showToast('📬 Sending test digest...');
+  try {
+    const res = await fetch('/api/digest', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✓ Test email sent to ' + data.sent_to);
+    } else {
+      showToast('❌ ' + (data.error || 'Send failed'));
+    }
+  } catch(e) {
+    showToast('❌ Could not reach digest endpoint');
+  }
+}
+
+async function loadDigestSettings() {
+  try {
+    const settings = await sbFetch('settings?select=key,value');
+    const map = {};
+    (settings || []).forEach(s => { map[s.key] = s.value; });
+    if (map['digest_email']) document.getElementById('digestEmailInput').value = map['digest_email'];
+    if (map['resend_key']) document.getElementById('resendKeyInput').value = map['resend_key'];
+  } catch(e) {} // settings table may not exist yet
 }
 
 // ─── VOICE INPUT ──────────────────────────────────────────────
