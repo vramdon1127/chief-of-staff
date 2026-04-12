@@ -2654,11 +2654,20 @@ function addObHat() {
   const colors = ['#f472b6','#60a5fa','#34d399','#fb923c','#a78bfa','#fbbf24','#38bdf8'];
   const icons = ['📁','🎯','🚀','⚡','🌟','💡','🔥'];
   obHats.push({ 
-    name: 'New Hat', 
+    name: '', 
     icon: icons[obHats.length % icons.length], 
     color: colors[obHats.length % colors.length] 
   });
   renderObHats();
+  // Focus the last input after render
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#ob-hats-list input[type="text"], #ob-hats-list input:not([type])');
+    const lastInput = inputs[inputs.length - 1];
+    if (lastInput) {
+      lastInput.focus();
+      lastInput.select();
+    }
+  }, 50);
 }
 
 function removeObHat(i) {
