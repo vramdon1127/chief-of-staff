@@ -1236,7 +1236,7 @@
 
 <!-- AI RESULT MODAL -->
 <div class="modal-overlay" id="aiModal" style="display:none;">
-  <div class="modal" style="max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+  <div class="modal" style="max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
     <!-- Header -->
     <div style="padding:20px 20px 0;flex-shrink:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -1784,7 +1784,17 @@ async function callAiAndDisplay(prompt) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message);
     const text = data.content[0].text;
-    resultEl.textContent = text;
+    // Render markdown
+    resultEl.innerHTML = text
+      .replace(/^### (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:14px;margin:14px 0 6px;">$1</div>')
+      .replace(/^## (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:16px;margin:16px 0 8px;">$1</div>')
+      .replace(/^# (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:18px;margin:16px 0 8px;">$1</div>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/^[-•] (.+)$/gm, '<div style="padding-left:12px;margin:3px 0;">• $1</div>')
+      .replace(/^\d+\. (.+)$/gm, (m, p1, offset, str) => `<div style="padding-left:12px;margin:3px 0;">${m}</div>`)
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
   } catch(e) {
     resultEl.textContent = 'Error: ' + e.message;
   }
@@ -1794,7 +1804,7 @@ async function tweakAiResult() {
   const instruction = document.getElementById('tweakInput').value.trim();
   if (!instruction) { showToast('⚠️ Tell Claude how to change it'); return; }
 
-  const currentResult = document.getElementById('aiModalResult').textContent;
+  const currentResult = document.getElementById('aiModalResult').innerText || document.getElementById('aiModalResult').textContent;
   const tweakPrompt = `${aiTaskContext}
 
 Here is what you produced:
@@ -1809,7 +1819,8 @@ Apply this instruction and produce the revised version only. No explanation.`;
 }
 
 function copyAiResult() {
-  const text = document.getElementById('aiModalResult').textContent;
+  const el = document.getElementById('aiModalResult');
+  const text = el.innerText || el.textContent;
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copyResultBtn');
     btn.textContent = '✓ Copied!';
