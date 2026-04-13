@@ -899,11 +899,11 @@
   <div class="logo" onclick="showView('capture')" style="cursor:pointer;">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:middle;margin-right:6px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>STWRD</div>
   <div style="display:flex;align-items:center;gap:8px;">
-    <!-- Partner toggle — hidden until linked -->
-    <div id="partnerToggle" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;display:none;align-items:center;gap:2px;">
-      <button id="myViewBtn" onclick="switchView('mine')" style="padding:5px 10px;border-radius:16px;border:none;background:var(--accent);color:white;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;">Me</button>
-      <button id="partnerViewBtn" onclick="switchView('partner')" style="padding:5px 10px;border-radius:16px;border:none;background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;" id="partnerViewBtn"></button>
-    </div>
+    <!-- Partner icon — always visible, glows when linked -->
+    <button id="partnerIconBtn" onclick="togglePartnerPanel()" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;" title="Partner">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <div id="partnerDot" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--personal);border:2px solid var(--bg);"></div>
+    </button>
     <div class="user-badge" onclick="toggleUserMenu()" style="position:relative;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       <span id="currentUser">Me</span>
@@ -914,6 +914,52 @@
     <button onclick="signOut()" style="width:100%;padding:10px 12px;background:none;border:none;color:var(--accent2);font-family:'DM Sans',sans-serif;font-size:14px;text-align:left;cursor:pointer;border-radius:8px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='none'">← Sign Out</button>
   </div>
 </header>
+
+<!-- PARTNER PANEL -->
+<div id="partnerPanel" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);border-radius:24px 24px 0 0;z-index:300;padding:20px 20px 40px;box-shadow:0 -8px 40px rgba(0,0,0,0.5);animation:slideUp 0.3s ease;max-width:600px;margin:0 auto;">
+  <!-- Handle -->
+  <div style="width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px;"></div>
+  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-bottom:4px;">👫 Partner</div>
+  <div style="font-size:13px;color:var(--text2);margin-bottom:20px;">View each other's world. Same app, separate scores.</div>
+
+  <!-- No partner state -->
+  <div id="partnerPanelEmpty" style="display:none;">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">🔗</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">No partner linked yet</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;">Generate an invite link and share it. When your partner opens it and signs in, you'll both be connected.</div>
+    </div>
+    <button onclick="generateInvite()" id="inviteBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Generate Invite Link
+    </button>
+    <div id="inviteResult" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Linked partner state -->
+  <div id="partnerPanelLinked" style="display:none;">
+    <!-- Partner card -->
+    <div id="partnerCard" style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;">
+      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">💑</div>
+      <div style="flex:1;">
+        <div id="partnerCardName" style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;"></div>
+        <div style="font-size:12px;color:var(--personal);margin-top:2px;">● Linked</div>
+      </div>
+    </div>
+
+    <!-- View toggle -->
+    <div style="display:flex;gap:10px;margin-bottom:16px;">
+      <button id="panelMyBtn" onclick="switchView('mine')" style="flex:1;padding:12px;border-radius:12px;border:2px solid var(--accent);background:rgba(124,111,239,0.15);color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;">🏠 My World</button>
+      <button id="panelPartnerBtn" onclick="switchView('partner')" style="flex:1;padding:12px;border-radius:12px;border:2px solid var(--border);background:transparent;color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;"></button>
+    </div>
+
+    <!-- Current view indicator -->
+    <div id="viewIndicator" style="background:var(--surface2);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--text2);text-align:center;margin-bottom:16px;">Viewing your own tasks and life score</div>
+
+    <button onclick="unlinkPartner(partnerData?.partnershipId)" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Unlink Partner</button>
+  </div>
+</div>
+<div id="partnerOverlay" onclick="togglePartnerPanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:299;"></div>
 
 <main style="display:none;">
   <!-- CAPTURE VIEW -->
@@ -1062,22 +1108,6 @@
       <div class="settings-row" style="cursor: default; flex-direction: column; align-items: flex-start;">
         <div class="settings-label" style="font-weight: 600;">About</div>
         <div class="settings-value" style="margin-top: 4px;">STWRD v2.0 · Your personal life management system</div>
-      </div>
-    </div>
-
-    <!-- PARTNER SECTION -->
-    <div class="settings-section">
-      <div class="settings-row" style="cursor:default;flex-direction:column;align-items:flex-start;">
-        <div class="settings-label" style="font-weight:600;margin-bottom:4px;">👫 Partner</div>
-        <div class="settings-value" style="margin-bottom:12px;">Link accounts to view each other's tasks and life scores</div>
-        <div id="partnerStatus" style="width:100%;">
-          <div style="color:var(--text2);font-size:13px;margin-bottom:12px;">Loading partner status...</div>
-        </div>
-        <button onclick="generateInvite()" id="inviteBtn" style="width:100%;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          Generate Invite Link
-        </button>
-        <div id="inviteResult" style="margin-top:10px;width:100%;"></div>
       </div>
     </div>
   </div>
@@ -3442,91 +3472,86 @@ function toggleMic() {
 
 // ─── PARTNER SYSTEM ───────────────────────────────────────────
 
+function togglePartnerPanel() {
+  const panel = document.getElementById('partnerPanel');
+  const overlay = document.getElementById('partnerOverlay');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  overlay.style.display = isOpen ? 'none' : 'block';
+  document.body.style.overflow = isOpen ? '' : 'hidden';
+}
+
 async function loadPartner() {
   try {
     const data = await sbFetch(`partnerships?or=(inviter_id.eq.${currentUserId},invitee_id.eq.${currentUserId})&status=eq.active&limit=1`);
     if (!data || data.length === 0) {
-      renderPartnerStatus(null);
+      renderPartnerPanel(null);
       return;
     }
     const partnership = data[0];
     const partnerId = partnership.inviter_id === currentUserId ? partnership.invitee_id : partnership.inviter_id;
-    // Load partner profile
-    const { data: profiles } = await sbClient.from('profiles').select('id,display_name,digest_email').eq('id', partnerId).single();
-    partnerData = { id: partnerId, name: profiles?.display_name || 'Partner', profile: profiles, partnershipId: partnership.id };
-    renderPartnerStatus(partnerData);
-    showPartnerToggle();
+    const { data: profile } = await sbClient.from('profiles').select('id,display_name,digest_email').eq('id', partnerId).single();
+    partnerData = { id: partnerId, name: profile?.display_name || 'Partner', profile, partnershipId: partnership.id };
+    renderPartnerPanel(partnerData);
   } catch(e) {
-    renderPartnerStatus(null);
+    renderPartnerPanel(null);
   }
 }
 
-function renderPartnerStatus(partner) {
-  const el = document.getElementById('partnerStatus');
-  if (!el) return;
+function renderPartnerPanel(partner) {
+  const empty = document.getElementById('partnerPanelEmpty');
+  const linked = document.getElementById('partnerPanelLinked');
+  const dot = document.getElementById('partnerDot');
+  const btn = document.getElementById('partnerIconBtn');
+
   if (partner) {
-    el.innerHTML = `
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-size:14px;">💑</div>
-          <div>
-            <div style="font-size:13px;font-weight:600;">${partner.name}</div>
-            <div style="font-size:11px;color:var(--personal);">● Linked</div>
-          </div>
-        </div>
-        <button onclick="unlinkPartner('${partner.partnershipId}')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;">Unlink</button>
-      </div>`;
-    const inviteBtn = document.getElementById('inviteBtn');
-    if (inviteBtn) inviteBtn.style.display = 'none';
+    if (empty) empty.style.display = 'none';
+    if (linked) linked.style.display = 'block';
+    if (dot) dot.style.display = 'block';
+    if (btn) { btn.style.borderColor = 'var(--personal)'; btn.style.color = 'var(--personal)'; }
+    const nameEl = document.getElementById('partnerCardName');
+    const partnerBtn = document.getElementById('panelPartnerBtn');
+    if (nameEl) nameEl.textContent = partner.name;
+    if (partnerBtn) partnerBtn.textContent = `👀 ${partner.name}'s World`;
   } else {
-    el.innerHTML = `<div style="font-size:13px;color:var(--text2);margin-bottom:12px;">No partner linked yet. Generate an invite link and share it with your partner.</div>`;
-    const inviteBtn = document.getElementById('inviteBtn');
-    if (inviteBtn) inviteBtn.style.display = 'flex';
-  }
-}
-
-function showPartnerToggle() {
-  if (!partnerData) return;
-  const toggle = document.getElementById('partnerToggle');
-  const partnerBtn = document.getElementById('partnerViewBtn');
-  if (toggle && partnerBtn) {
-    partnerBtn.textContent = partnerData.name;
-    toggle.style.display = 'flex';
+    if (empty) empty.style.display = 'block';
+    if (linked) linked.style.display = 'none';
+    if (dot) dot.style.display = 'none';
+    if (btn) { btn.style.borderColor = 'var(--border)'; btn.style.color = 'var(--text2)'; }
   }
 }
 
 async function switchView(mode) {
-  const myBtn = document.getElementById('myViewBtn');
-  const partnerBtn = document.getElementById('partnerViewBtn');
+  const myBtn = document.getElementById('panelMyBtn');
+  const partnerBtn = document.getElementById('panelPartnerBtn');
+  const indicator = document.getElementById('viewIndicator');
 
   if (mode === 'partner' && partnerData) {
     viewingPartner = true;
     myTasks = [...tasks];
     myHats = [...userHats];
-    // Load partner's tasks
     const { data } = await sbClient.from('tasks').select('*').eq('user_id', partnerData.id).neq('status', 'done').order('created_at', { ascending: false }).limit(100);
     tasks = data || [];
-    // Load partner's hats
     const hatsData = await sbFetch(`projects?user_id=eq.${partnerData.id}&order=sort_order.asc`);
     if (hatsData && hatsData.length > 0) {
       const seen = new Set();
       userHats = hatsData.filter(p => { if (seen.has(p.name)) return false; seen.add(p.name); return true; });
     }
-    myBtn.style.background = 'transparent';
-    myBtn.style.color = 'var(--text2)';
-    partnerBtn.style.background = 'var(--accent2)';
-    partnerBtn.style.color = 'white';
+    if (myBtn) { myBtn.style.borderColor = 'var(--border)'; myBtn.style.background = 'transparent'; myBtn.style.color = 'var(--text2)'; }
+    if (partnerBtn) { partnerBtn.style.borderColor = 'var(--accent2)'; partnerBtn.style.background = 'rgba(244,114,182,0.15)'; partnerBtn.style.color = 'var(--accent2)'; }
+    if (indicator) indicator.textContent = `Viewing ${partnerData.name}'s tasks and life score`;
     renderTasks();
+    togglePartnerPanel();
     showToast(`👀 Viewing ${partnerData.name}'s world`);
   } else {
     viewingPartner = false;
     if (myTasks.length > 0) tasks = [...myTasks];
     if (myHats.length > 0) userHats = [...myHats];
-    myBtn.style.background = 'var(--accent)';
-    myBtn.style.color = 'white';
-    partnerBtn.style.background = 'transparent';
-    partnerBtn.style.color = 'var(--text2)';
+    if (myBtn) { myBtn.style.borderColor = 'var(--accent)'; myBtn.style.background = 'rgba(124,111,239,0.15)'; myBtn.style.color = 'var(--accent)'; }
+    if (partnerBtn) { partnerBtn.style.borderColor = 'var(--border)'; partnerBtn.style.background = 'transparent'; partnerBtn.style.color = 'var(--text2)'; }
+    if (indicator) indicator.textContent = 'Viewing your own tasks and life score';
     renderTasks();
+    togglePartnerPanel();
     showToast('🏠 Back to your world');
   }
 }
@@ -3535,7 +3560,7 @@ async function generateInvite() {
   const btn = document.getElementById('inviteBtn');
   const result = document.getElementById('inviteResult');
   btn.disabled = true;
-  btn.innerHTML = 'Generating...';
+  btn.textContent = 'Generating...';
   try {
     const token = crypto.randomUUID();
     await sbFetch('partnerships', 'POST', {
@@ -3545,13 +3570,13 @@ async function generateInvite() {
     });
     const link = `${window.location.origin}${window.location.pathname}?invite=${token}`;
     result.innerHTML = `
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;">
         <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Share this link with your partner:</div>
-        <div style="font-size:12px;color:var(--text);word-break:break-all;margin-bottom:10px;background:var(--bg);padding:8px;border-radius:6px;">${link}</div>
-        <button onclick="copyInviteLink('${link}')" style="width:100%;padding:8px;border-radius:8px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">📋 Copy Link</button>
+        <div style="font-size:12px;color:var(--text);word-break:break-all;background:var(--bg);padding:10px;border-radius:8px;margin-bottom:10px;">${link}</div>
+        <button onclick="copyInviteLink('${link}')" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">📋 Copy Link</button>
       </div>`;
   } catch(e) {
-    result.innerHTML = `<div style="color:var(--accent2);font-size:13px;">Failed to generate invite. Try again.</div>`;
+    result.innerHTML = `<div style="color:var(--accent2);font-size:13px;margin-top:8px;">Failed to generate. Try again.</div>`;
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Generate Invite Link';
@@ -3564,20 +3589,17 @@ function copyInviteLink(link) {
 
 async function acceptInvite(token) {
   try {
-    // Find the partnership by token
     const data = await sbFetch(`partnerships?invite_token=eq.${token}&status=eq.pending&limit=1`);
     if (!data || data.length === 0) { showToast('⚠️ Invite link is invalid or already used'); return; }
     const partnership = data[0];
     if (partnership.inviter_id === currentUserId) { showToast('⚠️ You cannot accept your own invite'); return; }
-    // Accept it
     await sbFetch(`partnerships?id=eq.${partnership.id}`, 'PATCH', {
       invitee_id: currentUserId,
       status: 'active'
     });
-    // Clean URL
     window.history.replaceState({}, '', window.location.pathname);
     await loadPartner();
-    showToast('🎉 Partner linked! You can now view each other\'s world.');
+    showToast('🎉 Partner linked! Tap the 👫 icon to switch views.');
   } catch(e) {
     showToast('⚠️ Could not accept invite: ' + e.message);
   }
@@ -3589,9 +3611,9 @@ async function unlinkPartner(partnershipId) {
     await sbFetch(`partnerships?id=eq.${partnershipId}`, 'DELETE');
     partnerData = null;
     viewingPartner = false;
-    document.getElementById('partnerToggle').style.display = 'none';
-    if (myTasks.length > 0) { tasks = [...myTasks]; renderTasks(); }
-    renderPartnerStatus(null);
+    if (myTasks.length > 0) { tasks = [...myTasks]; userHats = [...myHats]; renderTasks(); }
+    renderPartnerPanel(null);
+    togglePartnerPanel();
     showToast('Partner unlinked');
   } catch(e) {
     showToast('❌ Could not unlink: ' + e.message);
