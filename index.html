@@ -1693,11 +1693,17 @@ async function processTask() {
     }).join('\n\n');
 
     const projectNames = userHats.map(p => p.name).join(' OR ');
+    const lifeAreaNames = userLifeCategories.length > 0
+      ? userLifeCategories.map(c => c.name).join(' OR ')
+      : 'Work OR Family OR Health OR Faith OR Finance OR Growth OR Recharge';
 
     const prompt = `You are STWRD, a personal AI life manager. You help ${currentUser} manage their life and work.
 
 PROJECTS:
 ${projectContext}
+
+LIFE AREAS (for life balance tracking):
+${userLifeCategories.length > 0 ? userLifeCategories.map(c => `${c.name}: ${Array.isArray(c.keywords) ? c.keywords.join(', ') : ''}`).join('\n') : 'Work, Family, Health, Faith, Finance, Growth, Recharge'}
 
 RECENT TASK HISTORY (use these patterns to categorize accurately):
 ${taskHistory || 'No previous tasks yet'}
@@ -1711,6 +1717,7 @@ CATEGORY: [AI Complete OR AI Assist OR Manual]
 PROJECT: [${projectNames}]
 PRIORITY: [P1 OR P2 OR P3 OR P4]
 DUE: [YYYY-MM-DD if a date is mentioned, otherwise none]
+LIFE: [${lifeAreaNames}]
 REASON: [one short sentence why]
 
 Priority guide: P1=urgent/today, P2=important/this week, P3=normal, P4=low/someday
@@ -1721,6 +1728,7 @@ Due date guide: Extract any date mentioned. Today is ${new Date().toLocaleDateSt
 - "this week" = this Friday
 - Day names like "Friday" = the next upcoming Friday
 - Specific dates like "April 15" = that date in the current year
+LIFE guide: Pick the ONE life area this task most belongs to based on its content and context. Use your judgment — "Peter walked on water" is Faith not Health.
 
 Raw task: ${raw}
 Added by: ${currentUser}`;
@@ -1752,6 +1760,7 @@ Added by: ${currentUser}`;
       project: get('PROJECT'),
       priority: get('PRIORITY'),
       due_date: dueDate,
+      life_area: get('LIFE') || null,
       status: 'todo',
       added_by: currentUser
     };
@@ -2198,7 +2207,6 @@ async function renderStats() {
       storedKeywords.some(k => h.includes(k) || k.includes(h)) || h === nameKey
     );
     const allKeywords = [...new Set([nameKey, ...storedKeywords, ...matchingHats])];
-    if (nameKey === 'faith') console.log('Faith final keywords:', allKeywords, 'matchingHats:', matchingHats);
     const key = nameKey.split(' ')[0];
     const advice = categoryAdvice[key] || { neglect: `No ${cat.name} tasks this week` };
     const color = cat.color || categoryColors[key] || 'var(--accent)';
@@ -2213,11 +2221,14 @@ async function renderStats() {
 
   const lifeScores = lifeCategories.map(cat => {
     const matched = allThisWeek.filter(t => {
+      // Prefer Claude-assigned life_area — accurate, no guessing
+      if (t.life_area) return t.life_area.toLowerCase() === cat.name.toLowerCase();
+      // Fall back to keyword matching for older tasks without life_area
       const text = ((t.cleaned_task || t.content) + ' ' + (t.project || '')).toLowerCase();
       return cat.keywords.some(k => matchesKeyword(text, k));
     });
     const count = matched.length;
-    const pct = Math.round((count / totalThisWeek) * 100); // % of your week this area got
+    const pct = Math.round((count / totalThisWeek) * 100);
     return { ...cat, count, pct, matched: count };
   });
   lastLifeScores = lifeScores;
@@ -2685,9 +2696,11 @@ function showLifeDrilldown(idx) {
   const cat = lastLifeScores[idx];
   if (!cat) return;
   const pool = lastAllThisWeek.length > 0 ? lastAllThisWeek : tasks;
-  // Use the same keywords that produced the score
   const keywords = cat.keywords || [];
   const filtered = pool.filter(t => {
+    // Prefer Claude-assigned life_area
+    if (t.life_area) return t.life_area.toLowerCase() === cat.name.toLowerCase();
+    // Fall back to keyword matching for older tasks
     const text = ((t.cleaned_task || t.content || '') + ' ' + (t.project || '')).toLowerCase();
     return keywords.some(k => matchesKeyword(text, k));
   });
