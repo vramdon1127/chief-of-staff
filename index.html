@@ -1475,7 +1475,7 @@ const DEFAULT_PROJECTS = [
 
 async function loadUserHats() {
   const badColors = new Set(['#ef4444','#f59e0b','#fbbf24','#10b981','#34d399','#fb923c','#f97316']);
-  const genericEmojis = new Set(['🚀','📁','💡','⚡','⭐','🌟','🔥','🎯','📌','🗂️','📂','🗃️']);
+  const genericEmojis = new Set(['🚀','📁','💡','⚡','⭐','🌟','🔥','🎯','📌','🗂️','📂','🗃️','🏡','🏠']);
   try {
     const data = await sbFetch(`projects?user_id=eq.${currentUserId}&order=sort_order.asc`);
     if (data && data.length > 0) {
@@ -2926,7 +2926,7 @@ async function assignHatPersonality(name) {
     { keys: ['caliber','collision','auto','car','body','repair','shop'], icon: '🔧', color: '#60a5fa' },
     { keys: ['serveants','serve','cpa','tax','accounting','bookkeep','nonprofit','treasurer'], icon: '📊', color: '#818cf8' },
     { keys: ['app','dev','software','code','tech','build','product','startup'], icon: '💻', color: '#38bdf8' },
-    { keys: ['family','home','kids','child','parent','husband','wife','spouse','baby'], icon: '🏡', color: '#22d3ee' },
+    { keys: ['family','home','kids','child','parent','husband','wife','spouse','baby'], icon: '👨‍👩‍👧', color: '#22d3ee' },
     { keys: ['personal','me','self','life','journal'], icon: '✨', color: '#a78bfa' },
     { keys: ['faith','church','ministry','worship','prayer','bible','spiritual'], icon: '🙏', color: '#c084fc' },
     { keys: ['health','gym','fitness','workout','run','sport','wellness'], icon: '💪', color: '#67e8f9' },
