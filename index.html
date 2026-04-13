@@ -1038,32 +1038,30 @@
       </div>
 
       <!-- Processing steps -->
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:0;overflow-x:auto;scrollbar-width:none;">
-        <div style="display:flex;align-items:center;gap:0;flex-shrink:0;">
-          <div style="text-align:center;padding:0 10px;">
-            <div style="font-size:18px;margin-bottom:3px;">🧹</div>
-            <div style="font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;">Cleans it up</div>
-          </div>
-          <div style="color:var(--border);font-size:16px;flex-shrink:0;">›</div>
-          <div style="text-align:center;padding:0 10px;">
-            <div style="font-size:18px;margin-bottom:3px;">🎩</div>
-            <div style="font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;">Assigns project</div>
-          </div>
-          <div style="color:var(--border);font-size:16px;flex-shrink:0;">›</div>
-          <div style="text-align:center;padding:0 10px;">
-            <div style="font-size:18px;margin-bottom:3px;">🔴</div>
-            <div style="font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;">Sets priority</div>
-          </div>
-          <div style="color:var(--border);font-size:16px;flex-shrink:0;">›</div>
-          <div style="text-align:center;padding:0 10px;">
-            <div style="font-size:18px;margin-bottom:3px;">📅</div>
-            <div style="font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;">Extracts date</div>
-          </div>
-          <div style="color:var(--border);font-size:16px;flex-shrink:0;">›</div>
-          <div style="text-align:center;padding:0 10px;">
-            <div style="font-size:18px;margin-bottom:3px;">🤖</div>
-            <div style="font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;">Categorizes</div>
-          </div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <div style="text-align:center;flex:1;">
+          <div style="font-size:20px;margin-bottom:4px;">🧹</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text);">Cleans it up</div>
+        </div>
+        <div style="color:var(--border);font-size:14px;">›</div>
+        <div style="text-align:center;flex:1;">
+          <div style="font-size:20px;margin-bottom:4px;">🎩</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text);">Assigns project</div>
+        </div>
+        <div style="color:var(--border);font-size:14px;">›</div>
+        <div style="text-align:center;flex:1;">
+          <div style="font-size:20px;margin-bottom:4px;">🔴</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text);">Sets priority</div>
+        </div>
+        <div style="color:var(--border);font-size:14px;">›</div>
+        <div style="text-align:center;flex:1;">
+          <div style="font-size:20px;margin-bottom:4px;">📅</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text);">Extracts date</div>
+        </div>
+        <div style="color:var(--border);font-size:14px;">›</div>
+        <div style="text-align:center;flex:1;">
+          <div style="font-size:20px;margin-bottom:4px;">🤖</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text);">Categorizes</div>
         </div>
       </div>
 
@@ -2315,15 +2313,15 @@ async function renderStats() {
     <div class="stat-card" style="margin-bottom:16px;">
       <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">AI vs Manual</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
-        <div style="background:rgba(67,233,123,0.1);border-radius:12px;padding:12px;">
+        <div onclick="showDrilldown('AI Complete', t => t.category === 'AI Complete')" style="background:rgba(67,233,123,0.1);border-radius:12px;padding:12px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(67,233,123,0.2)'" onmouseout="this.style.background='rgba(67,233,123,0.1)'">
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--ai-complete);">${aiComplete}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px;">AI Complete</div>
         </div>
-        <div style="background:rgba(108,99,255,0.1);border-radius:12px;padding:12px;">
+        <div onclick="showDrilldown('AI Assist', t => t.category === 'AI Assist')" style="background:rgba(108,99,255,0.1);border-radius:12px;padding:12px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(108,99,255,0.2)'" onmouseout="this.style.background='rgba(108,99,255,0.1)'">
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--ai-assist);">${aiAssist}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px;">AI Assist</div>
         </div>
-        <div style="background:rgba(148,163,184,0.12);border-radius:12px;padding:12px;border:1px solid rgba(148,163,184,0.2);">
+        <div onclick="showDrilldown('Manual Tasks', t => t.category === 'Manual')" style="background:rgba(148,163,184,0.12);border-radius:12px;padding:12px;cursor:pointer;border:1px solid rgba(148,163,184,0.2);transition:all 0.2s;" onmouseover="this.style.background='rgba(148,163,184,0.22)'" onmouseout="this.style.background='rgba(148,163,184,0.12)'">
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--manual);">${manual}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px;">Manual</div>
         </div>
@@ -2335,11 +2333,11 @@ async function renderStats() {
     <div class="stat-card" style="margin-bottom:16px;">
       <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">Task Owners</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center;">
-        <div style="background:rgba(108,99,255,0.1);border-radius:12px;padding:14px;">
+        <div onclick="showDrilldown('Your Tasks', t => t.added_by === currentUser)" style="background:rgba(108,99,255,0.1);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(108,99,255,0.2)'" onmouseout="this.style.background='rgba(108,99,255,0.1)'">
           <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);">${myCount}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px;">You</div>
         </div>
-        <div style="background:rgba(255,101,132,0.1);border-radius:12px;padding:14px;">
+        <div onclick="showDrilldown('Team Tasks', t => t.added_by !== currentUser && t.added_by)" style="background:rgba(255,101,132,0.1);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,101,132,0.2)'" onmouseout="this.style.background='rgba(255,101,132,0.1)'">
           <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent2);">${teamCount}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px;">Team</div>
         </div>
