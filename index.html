@@ -3907,13 +3907,15 @@ async function completeOnboarding() {
     localStorage.setItem('digestEmail', email);
     localStorage.setItem('userName', name);
 
-    // Helper for direct REST calls during onboarding (bypasses sbClient which hangs)
+    // Helper for direct REST calls during onboarding using user's auth token
+    const session = await sbClient.auth.getSession();
+    const authToken = session?.data?.session?.access_token || SUPABASE_KEY;
     const directFetch = async (path, method, body) => {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
         method,
         headers: {
           'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal',
         },
