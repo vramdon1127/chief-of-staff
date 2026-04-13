@@ -3894,11 +3894,9 @@ async function completeOnboarding() {
   const apiKey = document.getElementById('ob-apikey').value.trim();
   const email = document.getElementById('ob-email').value.trim();
   const aiContext = document.getElementById('ob-ai-context')?.value.trim() || '';
-  const resendKey = null; // Resend key managed server-side
 
   const btn = document.querySelector('#ob-step-6 button:last-child');
-  btn.disabled = true;
-  btn.textContent = 'Setting up...';
+  if (btn) { btn.disabled = true; btn.textContent = 'Setting up...'; }
 
   try {
     // Save profile
@@ -3907,26 +3905,29 @@ async function completeOnboarding() {
       full_name: name,
       anthropic_key: apiKey,
       digest_email: email,
-      resend_key: resendKey || null,
+      resend_key: null,
       ai_context: aiContext || null,
       preferred_ai: selectedAI || 'claude',
       onboarding_complete: true,
     });
 
-    // Save projects
-    const projectsToInsert = obHats.map((p, i) => ({
+    // Save projects — clear existing first to avoid duplicates
+    await sbClient.from('projects').delete().eq('user_id', currentUserId);
+    const projectsToInsert = obHats.filter(p => p.name.trim()).map((p, i) => ({
       user_id: currentUserId,
       name: p.name,
       icon: p.icon,
       color: p.color,
       sort_order: i,
     }));
-    await sbClient.from('projects').insert(projectsToInsert);
+    if (projectsToInsert.length > 0) {
+      await sbClient.from('projects').insert(projectsToInsert);
+    }
 
-    // Save life categories
-    const metricsToInsert = obMetrics.map((m, i) => {
-      // Merge default keywords with any custom context the user typed
-      const customKeywords = m.context 
+    // Save life categories — clear existing first to avoid duplicates
+    await sbClient.from('life_categories').delete().eq('user_id', currentUserId);
+    const metricsToInsert = obMetrics.filter(m => m.active).map((m, i) => {
+      const customKeywords = m.context
         ? m.context.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length > 0)
         : [];
       const allKeywords = [...new Set([...m.keywords, ...customKeywords])];
@@ -3938,10 +3939,12 @@ async function completeOnboarding() {
         goal: m.goal,
         keywords: allKeywords,
         sort_order: i,
-        active: m.active,
+        active: true,
       };
     });
-    await sbClient.from('life_categories').insert(metricsToInsert);
+    if (metricsToInsert.length > 0) {
+      await sbClient.from('life_categories').insert(metricsToInsert);
+    }
 
     // Save API key locally
     localStorage.setItem('apiKey', apiKey);
@@ -3959,8 +3962,8 @@ async function completeOnboarding() {
     showToast('✨ Welcome to STWRD, ' + name + '!');
 
   } catch(e) {
-    btn.disabled = false;
-    btn.textContent = "Let's go →";
+    console.error('Onboarding error:', e);
+    if (btn) { btn.disabled = false; btn.textContent = "Let's go →"; }
     showToast('❌ Setup failed: ' + e.message);
   }
 }
