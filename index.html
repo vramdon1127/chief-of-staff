@@ -3462,6 +3462,8 @@ let audioContext = null;
 let analyser = null;
 let micStream = null;
 let waveAnimFrame = null;
+let silenceTimer = null;
+let fullTranscript = '';
 
 function startWaveform() {
   const wf = document.getElementById('waveform');
@@ -3480,28 +3482,40 @@ function startWaveform() {
     function draw() {
       waveAnimFrame = requestAnimationFrame(draw);
       analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
       bars.forEach((bar, i) => {
         const value = dataArray[i] || 0;
         const h = Math.max(4, (value / 255) * 32);
         bar.style.height = h + 'px';
         bar.style.opacity = 0.4 + (value / 255) * 0.6;
-        bar.style.animation = 'none'; // disable CSS animation
+        bar.style.animation = 'none';
       });
+
+      // Silence detection — if avg volume very low, start a 2.5s countdown
+      if (avg < 5) {
+        if (!silenceTimer) {
+          silenceTimer = setTimeout(() => {
+            recognition?.stop();
+          }, 2500);
+        }
+      } else {
+        // Voice detected — reset the silence timer
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+      }
     }
     draw();
-  }).catch(() => {
-    // Fallback to CSS animation if mic access denied
-  });
+  }).catch(() => {});
 }
 
 function stopWaveform() {
   const wf = document.getElementById('waveform');
   if (wf) wf.style.display = 'none';
   if (waveAnimFrame) { cancelAnimationFrame(waveAnimFrame); waveAnimFrame = null; }
+  if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
   if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   if (audioContext) { audioContext.close(); audioContext = null; }
   analyser = null;
-  // Reset bars to CSS animation state
+  fullTranscript = '';
   document.querySelectorAll('.wave-bar').forEach(bar => {
     bar.style.height = '';
     bar.style.opacity = '';
@@ -3520,10 +3534,11 @@ function toggleMic() {
     return;
   }
 
+  fullTranscript = '';
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SR();
-  recognition.continuous = false;
-  recognition.interimResults = false;
+  recognition.continuous = true;
+  recognition.interimResults = true;
   recognition.lang = 'en-US';
 
   recognition.onstart = () => {
@@ -3533,18 +3548,31 @@ function toggleMic() {
   };
 
   recognition.onresult = (e) => {
-    const transcript = e.results[0][0].transcript;
-    document.getElementById('taskInput').value = transcript;
-    autoResize(document.getElementById('taskInput'));
+    let interim = '';
+    let final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    if (final) fullTranscript += (fullTranscript ? ' ' : '') + final.trim();
+    const display = fullTranscript + (interim ? ' ' + interim : '');
+    const input = document.getElementById('taskInput');
+    input.value = display;
+    autoResize(input);
   };
 
   recognition.onend = () => {
     isRecording = false;
     document.getElementById('micBtn').classList.remove('recording');
     stopWaveform();
+    // Trim final value
+    const input = document.getElementById('taskInput');
+    if (input.value) input.value = input.value.trim();
   };
 
-  recognition.onerror = () => {
+  recognition.onerror = (e) => {
+    if (e.error === 'no-speech') return; // ignore, silence detector handles this
     isRecording = false;
     document.getElementById('micBtn').classList.remove('recording');
     stopWaveform();
