@@ -2240,7 +2240,10 @@ async function renderStats() {
         </div>
       </div>
       ${lifeScores.map(cat => `
-        <div style="margin-bottom:10px;">
+        <div onclick="showDrilldown('${cat.name} Tasks', t => {
+          const text = (t.cleaned_task || t.content || '').toLowerCase();
+          return ${JSON.stringify(cat.keywords)}.some(k => text.includes(k));
+        })" style="margin-bottom:10px;cursor:pointer;border-radius:8px;padding:4px;transition:all 0.2s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:14px;">${cat.icon}</span>
