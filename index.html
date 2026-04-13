@@ -2950,7 +2950,10 @@ async function renderProgress() {
   const first = snapshots[0];
   const scoreDelta = latest.life_score - first.life_score;
   const weekCount = snapshots.length;
-  const daysIn = Math.min(30, weekCount * 7);
+  // Calculate actual days in from first snapshot date
+  const firstDate = new Date(first.week_start || first.created_at);
+  const today = new Date();
+  const daysIn = Math.min(30, Math.max(1, Math.floor((today - firstDate) / (1000 * 60 * 60 * 24))));
   const daysLeft = Math.max(0, 30 - daysIn);
 
   // Build life score sparkline data
