@@ -3903,17 +3903,10 @@ async function completeOnboarding() {
 
   try {
     if (btn) btn.textContent = 'Saving profile...';
-    // Save API key locally
+    // Save API key locally — profile will be updated via Settings
     localStorage.setItem('apiKey', apiKey);
-    // Use sbFetch which already works throughout the app
-    await sbFetch(`profiles?id=eq.${currentUserId}`, 'PATCH', {
-      full_name: name,
-      anthropic_key: apiKey,
-      digest_email: email,
-      onboarding_complete: true,
-      preferred_ai: selectedAI || 'claude',
-      ai_context: aiContext || null,
-    });
+    localStorage.setItem('digestEmail', email);
+    localStorage.setItem('userName', name);
 
     if (btn) btn.textContent = 'Saving projects...';
     await sbClient.from('projects').delete().eq('user_id', currentUserId);
@@ -3963,6 +3956,20 @@ async function completeOnboarding() {
     setTimeout(saveWeeklySnapshot, 5000);
     setupRealtime();
     showToast('✨ Welcome to STWRD, ' + name + '!');
+
+    // Save profile + mark onboarding complete in background
+    setTimeout(async () => {
+      try {
+        await sbFetch(`profiles?id=eq.${currentUserId}`, 'PATCH', {
+          full_name: name,
+          anthropic_key: apiKey,
+          digest_email: email,
+          onboarding_complete: true,
+          preferred_ai: selectedAI || 'claude',
+          ai_context: aiContext || null,
+        });
+      } catch(e) { console.error('Background profile save failed:', e); }
+    }, 2000);
 
   } catch(e) {
     console.error('Onboarding error:', e);
