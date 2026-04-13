@@ -4001,6 +4001,7 @@ async function completeOnboarding() {
   } catch(e) {
     console.error('Onboarding error:', e);
     if (btn) { btn.disabled = false; btn.textContent = "Let's go →"; }
+    alert('Setup failed: ' + (e.message || JSON.stringify(e)));
     showToast('❌ ' + (e.message || 'Setup failed — check console'));
   }
 }
