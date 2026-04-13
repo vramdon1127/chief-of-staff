@@ -3895,6 +3895,9 @@ async function completeOnboarding() {
   const email = document.getElementById('ob-email').value.trim();
   const aiContext = document.getElementById('ob-ai-context')?.value.trim() || '';
 
+  if (!apiKey) { showToast('⚠️ Please paste your API key first'); return; }
+  if (!email) { showToast('⚠️ Please enter your digest email'); return; }
+
   const btn = document.querySelector('#ob-step-6 button:last-child');
   if (btn) { btn.disabled = true; btn.textContent = 'Setting up...'; }
 
