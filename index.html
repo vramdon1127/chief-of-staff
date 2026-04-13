@@ -899,10 +899,11 @@
   <div class="logo" onclick="showView('capture')" style="cursor:pointer;">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:middle;margin-right:6px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>STWRD</div>
   <div style="display:flex;align-items:center;gap:8px;">
-    <!-- Partner icon — always visible, glows when linked -->
-    <button id="partnerIconBtn" onclick="togglePartnerPanel()" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;" title="Partner">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <div id="partnerDot" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--personal);border:2px solid var(--bg);"></div>
+    <!-- Partner pill — matches user badge style -->
+    <button id="partnerIconBtn" onclick="togglePartnerPanel()" style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 12px;cursor:pointer;transition:all 0.2s;position:relative;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor=partnerData?'var(--personal)':'var(--border)'">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span id="partnerPillLabel" style="font-size:13px;color:var(--text2);">Partner</span>
+      <div id="partnerDot" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--personal);"></div>
     </button>
     <div class="user-badge" onclick="toggleUserMenu()" style="position:relative;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -3508,7 +3509,10 @@ function renderPartnerPanel(partner) {
     if (empty) empty.style.display = 'none';
     if (linked) linked.style.display = 'block';
     if (dot) dot.style.display = 'block';
-    if (btn) { btn.style.borderColor = 'var(--personal)'; btn.style.color = 'var(--personal)'; }
+    const pill = document.getElementById('partnerIconBtn');
+    const label = document.getElementById('partnerPillLabel');
+    if (pill) { pill.style.borderColor = 'var(--personal)'; }
+    if (label) { label.textContent = partner.name; label.style.color = 'var(--personal)'; }
     const nameEl = document.getElementById('partnerCardName');
     const partnerBtn = document.getElementById('panelPartnerBtn');
     if (nameEl) nameEl.textContent = partner.name;
@@ -3517,7 +3521,10 @@ function renderPartnerPanel(partner) {
     if (empty) empty.style.display = 'block';
     if (linked) linked.style.display = 'none';
     if (dot) dot.style.display = 'none';
-    if (btn) { btn.style.borderColor = 'var(--border)'; btn.style.color = 'var(--text2)'; }
+    const pill = document.getElementById('partnerIconBtn');
+    const label = document.getElementById('partnerPillLabel');
+    if (pill) { pill.style.borderColor = 'var(--border)'; }
+    if (label) { label.textContent = 'Partner'; label.style.color = 'var(--text2)'; }
   }
 }
 
@@ -3573,8 +3580,10 @@ async function generateInvite() {
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;">
         <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Share this link with your partner:</div>
         <div style="font-size:12px;color:var(--text);word-break:break-all;background:var(--bg);padding:10px;border-radius:8px;margin-bottom:10px;">${link}</div>
-        <button onclick="copyInviteLink('${link}')" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">📋 Copy Link</button>
+        <button onclick="copyInviteLink('${link}')" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:8px;">📋 Copy Link</button>
+        <button onclick="document.getElementById('inviteResult').innerHTML='';document.getElementById('inviteBtn').style.display='flex';" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;">Generate a new link</button>
       </div>`;
+    btn.style.display = 'none';
   } catch(e) {
     result.innerHTML = `<div style="color:var(--accent2);font-size:13px;margin-top:8px;">Failed to generate. Try again.</div>`;
   } finally {
