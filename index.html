@@ -1494,13 +1494,27 @@ window.addEventListener('load', async () => {
         const parsed = JSON.parse(raw);
         const maybeSess = parsed?.access_token ? parsed : parsed?.currentSession;
         if (maybeSess?.access_token && maybeSess?.user) {
-          // Check expiry if present
           const expiresAt = maybeSess.expires_at;
           const nowSec = Math.floor(Date.now() / 1000);
+          // Refresh if expired OR within 2 minutes of expiry
+          const nearExpiry = expiresAt && (expiresAt - nowSec) < 120;
           if (!expiresAt || expiresAt > nowSec) {
             session = maybeSess;
-          } else {
-            console.log('[STWRD] Stored session expired, needs refresh');
+            // Proactively refresh if getting close to expiry (fire & forget)
+            if (nearExpiry && maybeSess.refresh_token) {
+              refreshSession(maybeSess.refresh_token).catch(e => console.warn('[STWRD] Background refresh failed:', e));
+            }
+          } else if (maybeSess.refresh_token) {
+            // Expired — try to refresh using the refresh_token
+            console.log('[STWRD] Session expired, attempting refresh');
+            const refreshed = await refreshSession(maybeSess.refresh_token).catch(e => {
+              console.warn('[STWRD] Refresh failed:', e.message);
+              return null;
+            });
+            if (refreshed?.access_token && refreshed?.user) {
+              session = refreshed;
+              console.log('[STWRD] Refresh succeeded');
+            }
           }
         }
       }
@@ -1640,6 +1654,35 @@ function hideAuthScreens() {
   document.body.style.overflow = '';
 }
 
+// Refresh the Supabase access token using the refresh_token.
+// Direct fetch to /auth/v1/token to bypass the SDK (which hangs on Safari locks).
+async function refreshSession(refreshToken) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!res.ok) {
+    // Refresh token is invalid/expired — clear session so user signs in fresh
+    localStorage.removeItem('stwrd-auth');
+    throw new Error(`Refresh failed ${res.status}: ${await res.text()}`);
+  }
+  const data = await res.json();
+  const sessionPayload = {
+    access_token: data.access_token,
+    token_type: data.token_type,
+    expires_in: data.expires_in,
+    expires_at: data.expires_at,
+    refresh_token: data.refresh_token,
+    user: data.user,
+  };
+  localStorage.setItem('stwrd-auth', JSON.stringify(sessionPayload));
+  return sessionPayload;
+}
+
 async function signInWithGoogle() {
   try {
     const { error } = await sbClient.auth.signInWithOAuth({
@@ -1740,7 +1783,20 @@ async function sbFetch(path, method = 'GET', body = null) {
     }
   };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, opts);
+  let res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, opts);
+
+  // If unauthorized and we have a refresh_token, try refreshing once and retry
+  if (res.status === 401 && sess?.refresh_token) {
+    try {
+      const refreshed = await refreshSession(sess.refresh_token);
+      opts.headers['Authorization'] = `Bearer ${refreshed.access_token}`;
+      res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, opts);
+    } catch(e) {
+      // Refresh failed — user will be redirected to login on next init
+      console.warn('[STWRD] 401 refresh attempt failed:', e.message);
+    }
+  }
+
   if (!res.ok) throw new Error(await res.text());
   const text = await res.text();
   return text ? JSON.parse(text) : null;
