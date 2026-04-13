@@ -711,8 +711,8 @@
 </div>
 
 <!-- ONBOARDING SCREEN -->
-<div id="onboardingScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:999;overflow:hidden;">
-  <div id="onboardingScroll" style="max-width:500px;margin:0 auto;padding:40px 24px 120px;height:100vh;overflow-y:auto;overflow-x:hidden;background:var(--bg);">
+<div id="onboardingScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:999;overflow-y:auto;overflow-x:hidden;">
+  <div id="onboardingScroll" style="max-width:500px;margin:0 auto;padding:40px 24px 120px;background:var(--bg);position:relative;z-index:1;min-height:100vh;">
     
     <!-- Step indicator -->
     <div style="display:flex;gap:4px;margin-bottom:40px;" id="onboardingSteps">
@@ -1246,6 +1246,7 @@ function showAuthScreen() {
   document.querySelector('main').style.display = 'none';
   document.querySelector('.nav-bar').style.display = 'none';
   document.getElementById('chatBtn').style.display = 'none';
+  document.body.style.overflow = 'hidden';
 }
 
 function hideAuthScreens() {
@@ -1255,6 +1256,7 @@ function hideAuthScreens() {
   document.querySelector('main').style.display = 'block';
   document.querySelector('.nav-bar').style.display = 'flex';
   document.getElementById('chatBtn').style.display = 'flex';
+  document.body.style.overflow = '';
 }
 
 async function signInWithGoogle() {
@@ -2744,6 +2746,7 @@ function showOnboarding(user) {
   document.querySelector('main').style.display = 'none';
   document.querySelector('.nav-bar').style.display = 'none';
   document.getElementById('chatBtn').style.display = 'none';
+  document.body.style.overflow = 'hidden';
   
   // Pre-fill name from Google
   const name = user.user_metadata?.full_name?.split(' ')[0] || '';
@@ -2969,7 +2972,7 @@ function obNext(step) {
   document.getElementById(`step-dot-${step}`).classList.remove('active');
   document.getElementById(`step-dot-${step}`).classList.add('done');
   document.getElementById(`step-dot-${step + 1}`).classList.add('active');
-  const screen = document.getElementById('onboardingScroll') || document.getElementById('onboardingScreen');
+  const screen = document.getElementById('onboardingScreen');
   screen.scrollTop = 0;
   if (step + 1 === 4) renderObHats();
   if (step + 1 === 5) renderObMetrics();
@@ -2981,7 +2984,7 @@ function obBack(step) {
   document.getElementById(`step-dot-${step}`).classList.remove('active');
   document.getElementById(`step-dot-${step - 1}`).classList.remove('done');
   document.getElementById(`step-dot-${step - 1}`).classList.add('active');
-  (document.getElementById('onboardingScroll') || document.getElementById('onboardingScreen')).scrollTop = 0;
+  document.getElementById('onboardingScreen').scrollTop = 0;
 }
 
 async function completeOnboarding() {
