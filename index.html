@@ -1266,6 +1266,10 @@
       <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">DUE DATE (optional)</label>
       <input type="date" id="editDueDate" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
     </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">NOTES (optional)</label>
+      <textarea id="editNotes" rows="3" placeholder="Add context, updates, or follow-up details..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;resize:none;outline:none;"></textarea>
+    </div>
     <div class="modal-actions">
       <button class="modal-btn primary" onclick="saveEdit()">Save Changes</button>
       <button class="modal-btn secondary" onclick="closeEditModal()">Cancel</button>
@@ -2121,6 +2125,7 @@ function renderHatTasks() {
             <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
             <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
           </div>
+          ${task.notes ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.5;border-left:2px solid var(--accent);">📝 ${task.notes}</div>` : ''}
         </div>
       </div>
     </div>`;
@@ -2541,6 +2546,7 @@ function openEditModal(taskId) {
     btn.style.color = btn.textContent === editingPriority ? 'white' : `var(--${btn.textContent.toLowerCase()})`;
   });
   document.getElementById('editDueDate').value = task.due_date || '';
+  document.getElementById('editNotes').value = task.notes || '';
   document.getElementById('editModal').style.display = 'flex';
 }
 
@@ -2590,12 +2596,14 @@ async function saveEdit() {
 
   // Update the task
   const newDueDate = document.getElementById('editDueDate').value || null;
+  const newNotes = document.getElementById('editNotes').value.trim() || null;
   const updates = {
     cleaned_task: newName,
     project: newProject,
     category: newCategory,
     priority: newPriority,
-    due_date: newDueDate
+    due_date: newDueDate,
+    notes: newNotes
   };
 
   await updateTask(editingTaskId, updates);
