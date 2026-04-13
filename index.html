@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="STWRD">
+<meta name="theme-color" content="#0a0a0f">
 <title>STWRD</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -23,7 +24,8 @@
     --gne: #f472b6;         /* soft pink — GNE only */
     --caliber: #60a5fa;     /* sky blue — Caliber only */
     --personal: #a78bfa;    /* soft purple — Personal only */
-    --servents: #fb923c;    /* orange — ServeAnts only */
+    --serveants: #818cf8;   /* indigo — ServeAnts only */
+    --servents: #818cf8;    /* alias for typo compatibility */
     --family: #22d3ee;      /* cyan — Family only */
 
     /* PRIORITY COLORS — severity scale, red reserved for P1 only */
@@ -113,7 +115,7 @@
     z-index: 1;
     max-width: 900px;
     margin: 0 auto;
-    padding: 24px 16px 100px;
+    padding: 24px 16px calc(90px + env(safe-area-inset-bottom));
   }
 
   /* CAPTURE SECTION */
@@ -578,7 +580,7 @@
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
     display: flex;
-    padding: 8px 0 20px;
+    padding: 8px 0 calc(12px + env(safe-area-inset-bottom));
     z-index: 100;
   }
 
@@ -1171,10 +1173,6 @@
         <div class="settings-label" style="font-weight:600;margin-bottom:12px;">📚 Hat Knowledge</div>
         <div class="settings-value" style="margin-bottom:8px;">Update the context Claude uses for each hat</div>
         <select id="hatSelect" onchange="loadHatEditor()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;margin-bottom:8px;">
-          <option value="GNE">🎵 GNE</option>
-          <option value="Caliber">🔧 Caliber</option>
-          <option value="Personal">🏠 Personal</option>
-          <option value="ServeAnts">📊 ServeAnts</option>
         </select>
         <textarea id="hatEditor" rows="6" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;resize:vertical;margin-bottom:8px;" placeholder="Paste project context here..."></textarea>
         <button onclick="saveHatKnowledge()" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">Save Knowledge</button>
@@ -1238,10 +1236,6 @@
       <div>
         <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">PROJECT</label>
         <select id="editHat" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;">
-          <option value="GNE">🎵 GNE</option>
-          <option value="Caliber">🔧 Caliber</option>
-          <option value="Personal">🏠 Personal</option>
-          <option value="ServeAnts">📊 ServeAnts</option>
         </select>
       </div>
       <div>
@@ -1400,6 +1394,7 @@ async function initApp(user) {
   // Load user data and show app
   hideAuthScreens();
   await loadUserHats();
+  populateHatSelectors();
   await loadUserLifeCategories();
   await loadKnowledge();
   await loadCorrections();
@@ -1934,11 +1929,14 @@ async function removeTask(taskId) {
 
 // ─── RENDER ───────────────────────────────────────────────────
 const HATS = [
-  { name: 'GNE', icon: '🎵', color: 'var(--gne)' },
+  { name: 'GNE', icon: '🎧', color: 'var(--gne)' },
   { name: 'Caliber', icon: '🔧', color: 'var(--caliber)' },
-  { name: 'Personal', icon: '🏠', color: 'var(--personal)' },
-  { name: 'ServeAnts', icon: '📊', color: 'var(--servents)' },
+  { name: 'Personal', icon: '✨', color: 'var(--personal)' },
+  { name: 'ServeAnts', icon: '📊', color: 'var(--serveants)' },
+  { name: 'Family', icon: '👨‍👩‍👧', color: 'var(--family)' },
 ];
+// PROJECTS alias for backward compatibility
+const PROJECTS = HATS;
 
 // Color lookup helper
 function hatColor(name) {
@@ -1949,8 +1947,13 @@ function hatColor(name) {
 let currentHat = null;
 let currentHatFilter = 'all';
 
-function renderTasks() {
-  renderHatBuckets();
+function populateHatSelectors() {
+  const hats = userHats.length > 0 ? userHats : HATS;
+  const options = hats.map(p => `<option value="${p.name}">${p.icon} ${p.name}</option>`).join('');
+  const hatSelect = document.getElementById('hatSelect');
+  const editHat = document.getElementById('editHat');
+  if (hatSelect) hatSelect.innerHTML = options;
+  if (editHat) editHat.innerHTML = options;
 }
 
 function renderHatBuckets() {
