@@ -873,7 +873,13 @@
       </div>
 
       <div id="ob-hats-list" style="margin-bottom:12px;"></div>
-      <button onclick="addObHat()" style="width:100%;padding:12px;border-radius:12px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;margin-bottom:24px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ Add Project</button>
+
+      <!-- Project suggestions -->
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:10px;">Quick add</div>
+        <div id="ob-hat-suggestions" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
+        <button onclick="addObHat()" style="width:100%;padding:11px;border-radius:12px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ Add custom project</button>
+      </div>
       <div style="display:flex;gap:10px;">
         <button onclick="obBack(4)" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">← Back</button>
         <button onclick="obNext(4)" style="flex:2;padding:14px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;">Continue →</button>
@@ -3316,10 +3322,11 @@ function renderObHats() {
   el.innerHTML = obHats.map((p, i) => `
     <div style="background:var(--surface);border:1px solid ${p.loading ? 'var(--border)' : p.color + '40'};border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:all 0.3s;">
       <span style="font-size:20px;">${p.loading ? '⏳' : p.icon}</span>
-      <input value="${p.name}" onchange="obHats[${i}].name=this.value" placeholder="Hat name..." style="flex:1;background:transparent;border:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
+      <input value="${p.name}" onchange="obHats[${i}].name=this.value" placeholder="Project name..." style="flex:1;background:transparent;border:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
       ${p.loading ? `<span style="font-size:11px;color:var(--text2);">AI picking...</span>` : `<div style="width:16px;height:16px;border-radius:50%;background:${p.color};flex-shrink:0;"></div>`}
       <button onclick="removeObHat(${i})" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;padding:0;">×</button>
     </div>`).join('');
+  renderObHatSuggestions();
 }
 
 async function assignHatPersonality(name) {
@@ -3379,6 +3386,38 @@ COLOR: [hex code]` }]
 
   // Final fallback
   return { icon: '📋', color: '#a78bfa' };
+}
+
+const HAT_SUGGESTIONS = [
+  { name: 'Personal', icon: '✨', color: '#a78bfa' },
+  { name: 'Home', icon: '🏠', color: '#22d3ee' },
+  { name: 'Side Hustle', icon: '🚀', color: '#e879f9' },
+  { name: 'Ministry', icon: '🙏', color: '#c084fc' },
+  { name: 'Creative', icon: '🎨', color: '#f472b6' },
+  { name: 'Nonprofit', icon: '🤝', color: '#818cf8' },
+  { name: 'School', icon: '📚', color: '#60a5fa' },
+  { name: 'Freelance', icon: '💻', color: '#38bdf8' },
+];
+
+function renderObHatSuggestions() {
+  const el = document.getElementById('ob-hat-suggestions');
+  if (!el) return;
+  const existing = obHats.map(h => h.name.toLowerCase());
+  const available = HAT_SUGGESTIONS.filter(s => !existing.includes(s.name.toLowerCase()));
+  el.innerHTML = available.map(s => `
+    <button onclick="quickAddHat('${s.name}','${s.icon}','${s.color}')"
+      style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;cursor:pointer;transition:all 0.2s;"
+      onmouseover="this.style.borderColor='${s.color}';this.style.color='var(--text)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
+      <span>${s.icon}</span> ${s.name}
+    </button>`).join('');
+}
+
+function quickAddHat(name, icon, color) {
+  obHats.push({ name, icon, color, loading: false });
+  renderObHats();
+  renderObHatSuggestions();
+  showToast('✓ ' + name + ' added');
 }
 
 function addObHat() {
