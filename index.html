@@ -4667,9 +4667,9 @@ async function loadPartner() {
     }
     const partnership = data[0];
     const partnerId = partnership.inviter_id === currentUserId ? partnership.invitee_id : partnership.inviter_id;
-    const profileRows = await sbFetch(`profiles?id=eq.${partnerId}&select=id,display_name,digest_email,full_name`);
+    const profileRows = await sbFetch(`profiles?id=eq.${partnerId}&select=id,full_name,digest_email`);
     const profile = Array.isArray(profileRows) ? profileRows[0] : profileRows;
-    partnerData = { id: partnerId, name: profile?.display_name || profile?.full_name?.split(' ')[0] || 'Partner', profile, partnershipId: partnership.id };
+    partnerData = { id: partnerId, name: profile?.full_name?.split(' ')[0] || 'Partner', profile, partnershipId: partnership.id };
     showToast('✅ Partner loaded: ' + partnerData.name);
     renderPartnerPanel(partnerData);
   } catch(e) {
