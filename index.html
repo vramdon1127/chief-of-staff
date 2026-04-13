@@ -4208,7 +4208,13 @@ async function generateInvite() {
   btn.disabled = true;
   btn.textContent = 'Generating...';
   try {
-    const token = crypto.randomUUID();
+    // crypto.randomUUID() not available in all mobile browsers — use fallback
+    const token = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+          const r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
     await sbFetch('partnerships', 'POST', {
       inviter_id: currentUserId,
       invite_token: token,
@@ -4232,7 +4238,21 @@ async function generateInvite() {
 }
 
 function copyInviteLink(link) {
-  navigator.clipboard.writeText(link).then(() => showToast('✓ Invite link copied!'));
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(() => showToast('✓ Invite link copied!'));
+  } else {
+    // Fallback for mobile Safari
+    const el = document.createElement('textarea');
+    el.value = link;
+    el.style.position = 'fixed';
+    el.style.opacity = '0';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    try { document.execCommand('copy'); showToast('✓ Invite link copied!'); }
+    catch(e) { showToast('Long press the link to copy'); }
+    document.body.removeChild(el);
+  }
 }
 
 async function acceptInvite(token) {
