@@ -1378,9 +1378,11 @@ const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    // Disable navigator lock — it hangs on Safari when a stale lock persists
-    // across tabs/sessions. A no-op lock means auth calls resolve immediately.
-    lock: (_name, _timeout, fn) => fn(),
+    // Disable navigator lock — Safari hangs on the default lock mechanism.
+    // This is a no-op lock that awaits the inner function directly.
+    lock: async (_name, _timeout, fn) => {
+      return await fn();
+    },
   }
 });
 
@@ -1418,35 +1420,62 @@ window.addEventListener('load', async () => {
     const pkceCode = url.searchParams.get('code');
     const hasHashToken = window.location.hash.includes('access_token');
 
-    // PKCE: explicitly exchange the code for a session
+    // PKCE: manually exchange the code via direct fetch, bypassing Supabase SDK
+    // (the SDK's post-response storage step hangs on Safari)
     if (pkceCode) {
       console.log('[STWRD] PKCE code detected, exchanging for session');
       try {
-        const exchangeResult = await Promise.race([
-          sbClient.auth.exchangeCodeForSession(pkceCode),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('exchangeCodeForSession timeout after 5s')), 5000))
-        ]);
-        const { data, error } = exchangeResult;
-        if (error) {
-          console.error('[STWRD] PKCE exchange returned error:', error.message, error);
-        } else if (data?.session) {
-          console.log('[STWRD] PKCE exchange succeeded, user:', data.session.user.id);
+        const codeVerifier = (localStorage.getItem('stwrd-auth-code-verifier') || '').replace(/^"|"$/g, '');
+        if (!codeVerifier) {
+          console.error('[STWRD] No code verifier in localStorage — cannot complete PKCE');
         } else {
-          console.warn('[STWRD] PKCE exchange returned no session and no error');
+          const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=pkce`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              auth_code: pkceCode,
+              code_verifier: codeVerifier,
+            }),
+          });
+
+          if (!tokenRes.ok) {
+            const errText = await tokenRes.text();
+            console.error('[STWRD] Token exchange failed:', tokenRes.status, errText);
+          } else {
+            const tokenData = await tokenRes.json();
+            console.log('[STWRD] Token exchange succeeded, user:', tokenData.user?.id);
+
+            // Manually persist the session in the shape Supabase expects
+            const sessionPayload = {
+              access_token: tokenData.access_token,
+              token_type: tokenData.token_type,
+              expires_in: tokenData.expires_in,
+              expires_at: tokenData.expires_at,
+              refresh_token: tokenData.refresh_token,
+              user: tokenData.user,
+            };
+            localStorage.setItem('stwrd-auth', JSON.stringify(sessionPayload));
+            localStorage.removeItem('stwrd-auth-code-verifier');
+
+            // Clean URL and launch app directly (skip the SDK entirely)
+            url.searchParams.delete('code');
+            url.searchParams.delete('state');
+            window.history.replaceState(null, '', url.pathname + (url.search || ''));
+
+            clearTimeout(failsafe);
+            await initApp(tokenData.user);
+            return;
+          }
         }
-        // Clean the URL regardless of outcome
+        // If we got here, something failed — clean URL so we don't loop
         url.searchParams.delete('code');
         url.searchParams.delete('state');
         window.history.replaceState(null, '', url.pathname + (url.search || ''));
-
-        if (data?.session) {
-          clearTimeout(failsafe);
-          await initApp(data.session.user);
-          return;
-        }
       } catch(exchangeErr) {
         console.error('[STWRD] PKCE exchange threw:', exchangeErr.message);
-        // Clean URL anyway so we don't loop on the same code
         url.searchParams.delete('code');
         url.searchParams.delete('state');
         window.history.replaceState(null, '', url.pathname + (url.search || ''));
