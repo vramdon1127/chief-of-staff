@@ -3899,7 +3899,7 @@ async function completeOnboarding() {
   if (btn) { btn.disabled = true; btn.textContent = 'Setting up...'; }
 
   try {
-    // Save profile
+    if (btn) btn.textContent = 'Saving profile...';
     await sbClient.from('profiles').upsert({
       id: currentUserId,
       full_name: name,
@@ -3911,7 +3911,7 @@ async function completeOnboarding() {
       onboarding_complete: true,
     });
 
-    // Save projects — clear existing first to avoid duplicates
+    if (btn) btn.textContent = 'Saving projects...';
     await sbClient.from('projects').delete().eq('user_id', currentUserId);
     const projectsToInsert = obHats.filter(p => p.name.trim()).map((p, i) => ({
       user_id: currentUserId,
@@ -3924,7 +3924,7 @@ async function completeOnboarding() {
       await sbClient.from('projects').insert(projectsToInsert);
     }
 
-    // Save life categories — clear existing first to avoid duplicates
+    if (btn) btn.textContent = 'Saving life areas...';
     await sbClient.from('life_categories').delete().eq('user_id', currentUserId);
     const metricsToInsert = obMetrics.filter(m => m.active).map((m, i) => {
       const customKeywords = m.context
@@ -3946,11 +3946,10 @@ async function completeOnboarding() {
       await sbClient.from('life_categories').insert(metricsToInsert);
     }
 
-    // Save API key locally
+    if (btn) btn.textContent = 'Loading app...';
     localStorage.setItem('apiKey', apiKey);
     currentUser = name;
 
-    // Load app
     hideAuthScreens();
     await loadUserHats();
     await loadUserLifeCategories();
@@ -3964,7 +3963,7 @@ async function completeOnboarding() {
   } catch(e) {
     console.error('Onboarding error:', e);
     if (btn) { btn.disabled = false; btn.textContent = "Let's go →"; }
-    showToast('❌ Setup failed: ' + e.message);
+    showToast('❌ ' + (e.message || 'Setup failed — check console'));
   }
 }
 
