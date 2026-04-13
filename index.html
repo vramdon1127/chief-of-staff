@@ -3903,8 +3903,7 @@ async function completeOnboarding() {
 
   try {
     if (btn) btn.textContent = 'Saving profile...';
-    await sbClient.from('profiles').upsert({
-      id: currentUserId,
+    const { error: profileError } = await sbClient.from('profiles').update({
       full_name: name,
       anthropic_key: apiKey,
       digest_email: email,
@@ -3912,7 +3911,8 @@ async function completeOnboarding() {
       ai_context: aiContext || null,
       preferred_ai: selectedAI || 'claude',
       onboarding_complete: true,
-    });
+    }).eq('id', currentUserId);
+    if (profileError) throw profileError;
 
     if (btn) btn.textContent = 'Saving projects...';
     await sbClient.from('projects').delete().eq('user_id', currentUserId);
