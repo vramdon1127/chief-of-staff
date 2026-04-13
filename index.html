@@ -1236,14 +1236,35 @@
 
 <!-- AI RESULT MODAL -->
 <div class="modal-overlay" id="aiModal" style="display:none;">
-  <div class="modal">
-    <div class="modal-title">✨ AI Result</div>
-    <div class="modal-sub" id="aiModalTask"></div>
-    <div class="processing-bar"></div>
-    <div class="modal-result" id="aiModalResult"></div>
-    <div class="modal-actions">
-      <button class="modal-btn primary" onclick="closeAiModal()">✓ Mark Done</button>
-      <button class="modal-btn secondary" onclick="closeAiModal()">Close</button>
+  <div class="modal" style="max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+    <!-- Header -->
+    <div style="padding:20px 20px 0;flex-shrink:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div id="aiModalBadge" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;"></div>
+        <button onclick="closeAiModal(false)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);cursor:pointer;font-size:12px;">✕ Close</button>
+      </div>
+      <div class="modal-title" style="margin-bottom:4px;" id="aiModalTask"></div>
+    </div>
+
+    <!-- Result area -->
+    <div style="flex:1;overflow-y:auto;padding:16px 20px;">
+      <div id="aiModalResult" style="font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap;min-height:80px;"></div>
+    </div>
+
+    <!-- Action bar -->
+    <div style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;">
+      <!-- Copy row -->
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button onclick="copyAiResult()" id="copyResultBtn" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s;">📋 Copy</button>
+        <button onclick="closeAiModal(true)" style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--done);color:#0a0a0f;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">✓ Done</button>
+      </div>
+      <!-- Tweak bar -->
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="tweakInput" type="text" placeholder="Tweak it… make it shorter, more formal, add a date…"
+          style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;"
+          onkeydown="if(event.key==='Enter') tweakAiResult()">
+        <button onclick="tweakAiResult()" id="tweakBtn" style="padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">↻ Redo</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1698,7 +1719,9 @@ Added by: ${currentUser}`;
 }
 
 // ─── AI COMPLETE TASK ─────────────────────────────────────────
-async function runAiTask(taskId) {
+let aiTaskContext = ''; // stores the base prompt for tweaking
+
+async function runAiTask(taskId, mode = 'complete') {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
 
@@ -1706,39 +1729,111 @@ async function runAiTask(taskId) {
   if (!apiKey) { showToast('⚠️ Add your API key in Settings'); return; }
 
   currentAiTaskId = taskId;
+
+  // Set badge
+  const badge = document.getElementById('aiModalBadge');
+  if (mode === 'complete') {
+    badge.textContent = '🤖 AI Complete';
+    badge.style.background = 'rgba(16,185,129,0.15)';
+    badge.style.color = 'var(--done)';
+  } else {
+    badge.textContent = '🤝 AI Assist';
+    badge.style.background = 'rgba(56,189,248,0.15)';
+    badge.style.color = 'var(--ai-assist)';
+  }
+
   document.getElementById('aiModalTask').textContent = task.cleaned_task || task.content;
-  document.getElementById('aiModalResult').textContent = 'Claude is working on this...';
+  document.getElementById('aiModalResult').textContent = 'Claude is working on this…';
+  document.getElementById('tweakInput').value = '';
   document.getElementById('aiModal').style.display = 'flex';
 
+  // Build context from hat knowledge
+  const hatKnowledge = knowledgeBase[task.project] || '';
+  const projectCtx = hatKnowledge ? `\nProject context: ${hatKnowledge}` : '';
+
+  if (mode === 'complete') {
+    aiTaskContext = `You are STWRD, the user's personal AI chief of staff.${projectCtx}
+
+Complete this task fully — produce the ready-to-use deliverable. Don't explain, just deliver.
+
+Task: ${task.cleaned_task || task.content}`;
+  } else {
+    aiTaskContext = `You are STWRD, the user's personal AI chief of staff.${projectCtx}
+
+This task needs human action, but you can help prep it. Give the user:
+1. A clear starting point (draft, outline, talking points, or key questions to answer)
+2. One specific recommended next step
+
+Task: ${task.cleaned_task || task.content}`;
+  }
+
+  await callAiAndDisplay(aiTaskContext);
+}
+
+async function callAiAndDisplay(prompt) {
+  const apiKey = localStorage.getItem('apiKey');
+  const resultEl = document.getElementById('aiModalResult');
+  resultEl.textContent = 'Claude is working on this…';
+
   try {
-    const gneContext = `GNE CONTEXT: Luxury DJ/MC company in Dallas TX. Vijay's voice is warm, faith-aligned, personal. Key phrases: "We would be absolutely HONORED", "Can't wait to make it an amazing night!". Packages: Elegant ($2,600-$3,200), Signature ($3,600-$4,400), Luxurious ($5,000-$6,200). Tools: HoneyBook, VIBO. MCs: Caleb, Jono. Always write in first person as Vijay. End with a clear next step. Scheduling link: https://bit.ly/GNEVideoCall`;
-    const caliberContext = `CALIBER CONTEXT: Vijay is Director of Internal Controls at Caliber Collision. SOX compliance with PwC as external auditor and Protiviti as co-sourced IA. Key systems: Workday, CCC ONE, FastPath, Workiva, CertiTrack. Active work: UAR/SOD cycles, AP narrative, account reconciliation tool, DOA rollout. Key contacts: Grant Willard, Craig James, Amit Patel, Jessica Knabe, Yvette Dubey. Communication style: professional, concise, no filler. Go straight to the revision. Peer-level tone with auditors. Write in first person as the user.`;
-    const projectContext = task.project === 'GNE' ? gneContext : task.project === 'Caliber' ? caliberContext : '';
-    const aiPrompt = `You are STWRD, the user's personal AI. Complete this task fully and present the result clearly. ${projectContext}\n\nTask: ${task.cleaned_task || task.content}\n\nProvide the complete deliverable ready to use — draft the email, write the script, create the timeline, etc. Don't explain what you're doing, just do it.`;
     const response = await fetch('/api/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: aiPrompt, apiKey, maxTokens: 1000 })
+      body: JSON.stringify({ prompt, apiKey, maxTokens: 1200 })
     });
-
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message);
-    document.getElementById('aiModalResult').textContent = data.content[0].text;
-  } catch (e) {
-    document.getElementById('aiModalResult').textContent = 'Error: ' + e.message;
+    const text = data.content[0].text;
+    resultEl.textContent = text;
+  } catch(e) {
+    resultEl.textContent = 'Error: ' + e.message;
   }
 }
 
-async function closeAiModal() {
+async function tweakAiResult() {
+  const instruction = document.getElementById('tweakInput').value.trim();
+  if (!instruction) { showToast('⚠️ Tell Claude how to change it'); return; }
+
+  const currentResult = document.getElementById('aiModalResult').textContent;
+  const tweakPrompt = `${aiTaskContext}
+
+Here is what you produced:
+${currentResult}
+
+User instruction: ${instruction}
+
+Apply this instruction and produce the revised version only. No explanation.`;
+
+  document.getElementById('tweakInput').value = '';
+  await callAiAndDisplay(tweakPrompt);
+}
+
+function copyAiResult() {
+  const text = document.getElementById('aiModalResult').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyResultBtn');
+    btn.textContent = '✓ Copied!';
+    btn.style.color = 'var(--done)';
+    btn.style.borderColor = 'var(--done)';
+    setTimeout(() => {
+      btn.textContent = '📋 Copy';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }, 2000);
+  });
+}
+
+async function closeAiModal(markDone = false) {
   document.getElementById('aiModal').style.display = 'none';
-  if (currentAiTaskId) {
-    await updateTask(currentAiTaskId, { status: 'done' });
+  if (markDone && currentAiTaskId) {
+    await updateTask(currentAiTaskId, { status: 'done', completed_at: new Date().toISOString() });
     tasks = tasks.filter(t => t.id !== currentAiTaskId);
     renderTasks();
     renderStats();
     showToast('✓ Task completed');
-    currentAiTaskId = null;
   }
+  currentAiTaskId = null;
+  aiTaskContext = '';
 }
 
 // ─── TASK ACTIONS ─────────────────────────────────────────────
@@ -1869,7 +1964,6 @@ function renderHatTasks() {
   list.innerHTML = filtered.map(task => {
     const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
     const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
-    const isAiComplete = task.category === 'AI Complete';
     return `
     <div class="task-card" id="task-${task.id}">
       <div class="task-card-top">
@@ -1885,7 +1979,8 @@ function renderHatTasks() {
             ${task.due_date ? `<span class="tag" style="background:rgba(108,99,255,0.1);color:var(--accent);">📅 ${task.due_date.split('-').slice(1).concat(task.due_date.split('-')[0]).join('/')}</span>` : ''}
           </div>
           <div class="task-actions">
-            ${isAiComplete ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}')">🤖 Run with AI</button>` : ''}
+            ${task.category === 'AI Complete' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','complete')">🤖 Run with AI</button>` : ''}
+            ${task.category === 'AI Assist' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','assist')" style="background:rgba(56,189,248,0.15);color:var(--ai-assist);border-color:rgba(56,189,248,0.3);">🤝 Get AI Help</button>` : ''}
             <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
             <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
           </div>
