@@ -1809,8 +1809,8 @@ async function callAiAndDisplay(prompt) {
       .replace(/^# (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:17px;margin:12px 0 6px;">$1</div>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em style="color:var(--text2);">$1</em>')
-      .replace(/^[-•]\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:2px 0;"><span style="color:var(--accent);flex-shrink:0;">·</span><span>$1</span></div>')
-      .replace(/^(\d+)\.\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:2px 0;"><span style="color:var(--accent);flex-shrink:0;min-width:16px;">$1.</span><span>$2</span></div>')
+      .replace(/^[-•]\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:1px 0;"><span style="color:var(--accent);flex-shrink:0;">·</span><span>$1</span></div>')
+      .replace(/^(\d+)\.\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:1px 0;"><span style="color:var(--accent);flex-shrink:0;min-width:16px;">$1.</span><span>$2</span></div>')
       .replace(/\n\n/g, '<div style="height:8px;"></div>')
       .replace(/\n/g, '<br>');
   } catch(e) {
