@@ -1384,7 +1384,13 @@ async function loadUserHats() {
   try {
     const data = await sbFetch(`projects?user_id=eq.${currentUserId}&order=sort_order.asc`);
     if (data && data.length > 0) {
-      userHats = data;
+      // Deduplicate by name in case of duplicate DB rows
+      const seen = new Set();
+      userHats = data.filter(p => {
+        if (seen.has(p.name)) return false;
+        seen.add(p.name);
+        return true;
+      });
     } else {
       userHats = HATS.map(p => ({ name: p.name, icon: p.icon, color: p.color }));
     }
