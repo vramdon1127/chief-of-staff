@@ -3903,12 +3903,28 @@ async function completeOnboarding() {
 
   try {
     if (btn) btn.textContent = 'Saving profile...';
-    // Update each field separately to avoid RLS/timeout issues
-    await sbClient.from('profiles').update({ full_name: name }).eq('id', currentUserId);
-    await sbClient.from('profiles').update({ anthropic_key: apiKey }).eq('id', currentUserId);
-    await sbClient.from('profiles').update({ digest_email: email }).eq('id', currentUserId);
-    await sbClient.from('profiles').update({ onboarding_complete: true }).eq('id', currentUserId);
-    if (aiContext) await sbClient.from('profiles').update({ ai_context: aiContext }).eq('id', currentUserId);
+    // Save locally first
+    localStorage.setItem('apiKey', apiKey);
+    // Use direct REST call instead of Supabase client to avoid hanging
+    const restUrl = `https://fnnegalrrdzcgoelljmi.supabase.co/rest/v1/profiles?id=eq.${currentUserId}`;
+    const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZubmVnYWxycmR6Y2dvZWxsam1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NDMwNjksImV4cCI6MjA5MTUxOTA2OX0.bhgk6czCQYTuUGnu5Zv7pml9uMuPrp4I1VBSzVIHwqw';
+    await fetch(restUrl, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': anonKey,
+        'Authorization': `Bearer ${(await sbClient.auth.getSession()).data.session.access_token}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        full_name: name,
+        anthropic_key: apiKey,
+        digest_email: email,
+        onboarding_complete: true,
+        preferred_ai: selectedAI || 'claude',
+        ai_context: aiContext || null,
+      })
+    });
 
     if (btn) btn.textContent = 'Saving projects...';
     await sbClient.from('projects').delete().eq('user_id', currentUserId);
