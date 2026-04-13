@@ -837,7 +837,7 @@
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;">📋 Ask your AI this right now:</div>
         <div id="ob-ai-prompt-text" style="background:var(--surface2);border-radius:8px;padding:12px;font-size:13px;color:var(--text);line-height:1.6;font-style:italic;margin-bottom:10px;">"Summarize what you know about my life, work, family, and goals in 3-4 sentences."</div>
-        <button onclick="copyAiPrompt()" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;">📋 Copy prompt</button>
+        <button onclick="copyAiPrompt()" style="padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:rgba(124,111,239,0.12);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">📋 Copy prompt</button>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;">
         <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Paste what it says <span style="color:var(--text2);font-weight:400;">(optional but powerful)</span></div>
@@ -3739,7 +3739,7 @@ function updateApiInstructions() {
 }
 
 function copyAiPrompt() {
-  const text = '"Summarize what you know about my life, work, family, and goals in 3-4 sentences."';
+  const text = 'Summarize what you know about my life, work, family, and goals in 3-4 sentences.';
   const btn = document.querySelector('[onclick="copyAiPrompt()"]');
   navigator.clipboard.writeText(text).then(() => {
     if (btn) {
