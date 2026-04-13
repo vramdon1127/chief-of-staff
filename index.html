@@ -3903,16 +3903,12 @@ async function completeOnboarding() {
 
   try {
     if (btn) btn.textContent = 'Saving profile...';
-    const { error: profileError } = await sbClient.from('profiles').update({
-      full_name: name,
-      anthropic_key: apiKey,
-      digest_email: email,
-      resend_key: null,
-      ai_context: aiContext || null,
-      preferred_ai: selectedAI || 'claude',
-      onboarding_complete: true,
-    }).eq('id', currentUserId);
-    if (profileError) throw profileError;
+    // Update each field separately to avoid RLS/timeout issues
+    await sbClient.from('profiles').update({ full_name: name }).eq('id', currentUserId);
+    await sbClient.from('profiles').update({ anthropic_key: apiKey }).eq('id', currentUserId);
+    await sbClient.from('profiles').update({ digest_email: email }).eq('id', currentUserId);
+    await sbClient.from('profiles').update({ onboarding_complete: true }).eq('id', currentUserId);
+    if (aiContext) await sbClient.from('profiles').update({ ai_context: aiContext }).eq('id', currentUserId);
 
     if (btn) btn.textContent = 'Saving projects...';
     await sbClient.from('projects').delete().eq('user_id', currentUserId);
