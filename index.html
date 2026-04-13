@@ -1603,6 +1603,10 @@ async function loadUserLifeCategories() {
 
 async function loadTasks() {
   try {
+    if (!currentUserId) {
+      showToast('⚠️ Not logged in');
+      return;
+    }
     const { data, error } = await sbClient
       .from('tasks')
       .select('*')
@@ -1615,8 +1619,8 @@ async function loadTasks() {
     renderTasks();
     renderStats();
   } catch (e) {
-    showToast('⚠️ Could not load tasks');
-    console.error(e);
+    showToast('⚠️ Could not load tasks: ' + (e.message || e.code || JSON.stringify(e)));
+    console.error('loadTasks error:', e);
   }
 }
 
