@@ -3890,10 +3890,12 @@ function obBack(step) {
 }
 
 async function completeOnboarding() {
+  console.log('[STWRD] completeOnboarding: START');
   const name = document.getElementById('ob-name').value.trim();
   const apiKey = document.getElementById('ob-apikey').value.trim();
   const email = document.getElementById('ob-email').value.trim();
   const aiContext = document.getElementById('ob-ai-context')?.value.trim() || '';
+  console.log('[STWRD] completeOnboarding: inputs read', { hasApiKey: !!apiKey, email, hasContext: !!aiContext });
 
   if (!apiKey) { showToast('⚠️ Please paste your API key first'); return; }
   if (!email) { showToast('⚠️ Please enter your digest email'); return; }
@@ -3907,17 +3909,34 @@ async function completeOnboarding() {
     localStorage.setItem('digestEmail', email);
     localStorage.setItem('userName', name);
 
-    // Get auth token from the live Supabase session (not localStorage — storageKey is custom)
-    const { data: { session: liveSession } } = await sbClient.auth.getSession();
-    if (!liveSession?.access_token) {
-      throw new Error('No active session — please sign in again');
+    console.log('[STWRD] Reading auth token from localStorage...');
+    // Read token directly from localStorage — tries custom storageKey first, then default
+    // (avoids a known supabase-js getSession() hang on some mobile browsers)
+    let authToken = null;
+    let sessionUserId = null;
+    const candidateKeys = ['stwrd-auth', 'sb-fnnegalrrdzcgoelljmi-auth-token'];
+    for (const k of candidateKeys) {
+      const raw = localStorage.getItem(k);
+      console.log('[STWRD] key', k, 'present?', !!raw);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        const sess = parsed?.access_token ? parsed : parsed?.currentSession;
+        if (sess?.access_token) {
+          authToken = sess.access_token;
+          sessionUserId = sess?.user?.id || sess?.user_id || null;
+          console.log('[STWRD] token found via key', k, 'userId:', sessionUserId);
+          break;
+        }
+      } catch(e) { console.warn('[STWRD] parse failed for', k, e); }
     }
-    const authToken = liveSession.access_token;
-    // Also make sure currentUserId matches the live session (avoids stale-id bugs)
-    if (liveSession.user?.id) {
-      currentUserId = liveSession.user.id;
+    if (!authToken) {
+      throw new Error('No active session found — please sign out and sign in again');
     }
+    if (sessionUserId) currentUserId = sessionUserId;
+    console.log('[STWRD] currentUserId:', currentUserId);
     const directFetch = async (path, method, body) => {
+      console.log('[STWRD] directFetch START', method, path);
       const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
         method,
         headers: {
@@ -3928,8 +3947,10 @@ async function completeOnboarding() {
         },
         body: body ? JSON.stringify(body) : undefined,
       });
+      console.log('[STWRD] directFetch DONE', method, path, 'status:', res.status);
       if (!res.ok) {
         const err = await res.text();
+        console.error('[STWRD] directFetch ERROR', method, path, err);
         throw new Error(err);
       }
     };
