@@ -2198,6 +2198,7 @@ async function renderStats() {
       storedKeywords.some(k => h.includes(k) || k.includes(h)) || h === nameKey
     );
     const allKeywords = [...new Set([nameKey, ...storedKeywords, ...matchingHats])];
+    if (nameKey === 'faith') console.log('Faith final keywords:', allKeywords, 'matchingHats:', matchingHats);
     const key = nameKey.split(' ')[0];
     const advice = categoryAdvice[key] || { neglect: `No ${cat.name} tasks this week` };
     const color = cat.color || categoryColors[key] || 'var(--accent)';
@@ -2684,12 +2685,13 @@ function showLifeDrilldown(idx) {
   const cat = lastLifeScores[idx];
   if (!cat) return;
   const pool = lastAllThisWeek.length > 0 ? lastAllThisWeek : tasks;
-  const matched = pool.filter(t => {
+  // Use the same keywords that produced the score
+  const keywords = cat.keywords || [];
+  const filtered = pool.filter(t => {
     const text = ((t.cleaned_task || t.content || '') + ' ' + (t.project || '')).toLowerCase();
-    return cat.keywords.some(k => matchesKeyword(text, k));
+    return keywords.some(k => matchesKeyword(text, k));
   });
-  // Sort: active first, done at bottom
-  const sorted = [...matched.filter(t => t.status !== 'done'), ...matched.filter(t => t.status === 'done')];
+  const sorted = [...filtered.filter(t => t.status !== 'done'), ...filtered.filter(t => t.status === 'done')];
 
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
