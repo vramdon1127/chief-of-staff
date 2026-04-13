@@ -2558,9 +2558,13 @@ function openEditModal(taskId) {
   document.getElementById('editDueDate').value = task.due_date || '';
   document.getElementById('editNotes').value = task.notes || '';
   document.getElementById('editModal').style.display = 'flex';
+  // iOS pull-to-refresh lock
+  const scrollY = window.scrollY;
   document.body.style.overflow = 'hidden';
   document.body.style.position = 'fixed';
+  document.body.style.top = `-${scrollY}px`;
   document.body.style.width = '100%';
+  document.body.dataset.scrollY = scrollY;
 }
 
 function selectPriority(p, btn) {
@@ -2576,9 +2580,13 @@ function selectPriority(p, btn) {
 function closeEditModal() {
   document.getElementById('editModal').style.display = 'none';
   editingTaskId = null;
+  // Restore scroll position after iOS body lock
+  const scrollY = parseInt(document.body.dataset.scrollY || '0');
   document.body.style.overflow = '';
   document.body.style.position = '';
+  document.body.style.top = '';
   document.body.style.width = '';
+  window.scrollTo(0, scrollY);
 }
 
 async function saveEdit() {
