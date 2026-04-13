@@ -3458,6 +3458,57 @@ async function loadDigestSettings() {
 }
 
 // ─── VOICE INPUT ──────────────────────────────────────────────
+let audioContext = null;
+let analyser = null;
+let micStream = null;
+let waveAnimFrame = null;
+
+function startWaveform() {
+  const wf = document.getElementById('waveform');
+  if (wf) wf.style.display = 'flex';
+
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    micStream = stream;
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 64;
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const bars = document.querySelectorAll('.wave-bar');
+
+    function draw() {
+      waveAnimFrame = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+      bars.forEach((bar, i) => {
+        const value = dataArray[i] || 0;
+        const h = Math.max(4, (value / 255) * 32);
+        bar.style.height = h + 'px';
+        bar.style.opacity = 0.4 + (value / 255) * 0.6;
+        bar.style.animation = 'none'; // disable CSS animation
+      });
+    }
+    draw();
+  }).catch(() => {
+    // Fallback to CSS animation if mic access denied
+  });
+}
+
+function stopWaveform() {
+  const wf = document.getElementById('waveform');
+  if (wf) wf.style.display = 'none';
+  if (waveAnimFrame) { cancelAnimationFrame(waveAnimFrame); waveAnimFrame = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (audioContext) { audioContext.close(); audioContext = null; }
+  analyser = null;
+  // Reset bars to CSS animation state
+  document.querySelectorAll('.wave-bar').forEach(bar => {
+    bar.style.height = '';
+    bar.style.opacity = '';
+    bar.style.animation = '';
+  });
+}
+
 function toggleMic() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
     showToast('⚠️ Voice not supported in this browser. Use Safari on iPhone.');
@@ -3478,8 +3529,7 @@ function toggleMic() {
   recognition.onstart = () => {
     isRecording = true;
     document.getElementById('micBtn').classList.add('recording');
-    const wf = document.getElementById('waveform');
-    if (wf) wf.style.display = 'flex';
+    startWaveform();
   };
 
   recognition.onresult = (e) => {
@@ -3491,15 +3541,13 @@ function toggleMic() {
   recognition.onend = () => {
     isRecording = false;
     document.getElementById('micBtn').classList.remove('recording');
-    const wf = document.getElementById('waveform');
-    if (wf) wf.style.display = 'none';
+    stopWaveform();
   };
 
   recognition.onerror = () => {
     isRecording = false;
     document.getElementById('micBtn').classList.remove('recording');
-    const wf = document.getElementById('waveform');
-    if (wf) wf.style.display = 'none';
+    stopWaveform();
     showToast('❌ Could not hear. Try again.');
   };
 
