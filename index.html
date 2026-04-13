@@ -728,12 +728,13 @@
 <div id="authScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;">
   <div style="width:100%;max-width:400px;text-align:center;">
     <div style="font-family:'Syne',sans-serif;font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;letter-spacing:-1px;">STWRD</div>
-    <div style="color:var(--text2);font-size:15px;margin-bottom:28px;line-height:1.5;">AI for the life you're actually living.</div>
+    <div style="color:var(--text);font-size:16px;font-weight:600;margin-bottom:4px;">Your household. Managed.</div>
+    <div style="color:var(--text2);font-size:13px;margin-bottom:28px;line-height:1.5;">Built for couples building a life together.</div>
     <!-- Feature pills -->
     <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:40px;">
       <div style="display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 12px;">
-        <span style="font-size:13px;">🎩</span>
-        <span style="font-size:12px;color:var(--text2);">Your Projects</span>
+        <span style="font-size:13px;">💑</span>
+        <span style="font-size:12px;color:var(--text2);">Partner View</span>
       </div>
       <div style="display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 12px;">
         <span style="font-size:13px;">⚖️</span>
@@ -773,11 +774,25 @@
     <!-- Step 1: Welcome + Name -->
     <div id="ob-step-1">
       <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Welcome to STWRD 👋</div>
-      <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:8px;">You're already using AI to think through your life. STWRD builds on that — giving your AI a structured home for your tasks, your goals, and your balance.</div>
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:24px;">
-        <div style="font-size:12px;color:var(--text2);line-height:1.6;">🔒 Your data stays yours. We never sell or share it. You can delete your account anytime.</div>
+      <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:16px;">You're building a life with your spouse, raising kids, growing a career, and trying to stay healthy and grounded. STWRD is the household OS that holds it all together.</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;">
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
+          <span style="font-size:16px;">💑</span>
+          <div><div style="font-size:13px;font-weight:600;margin-bottom:2px;">Built for couples</div><div style="font-size:12px;color:var(--text2);">Link with your partner to share tasks, a combined life score, and a daily digest.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
+          <span style="font-size:16px;">⚖️</span>
+          <div><div style="font-size:13px;font-weight:600;margin-bottom:2px;">Life Balance Score</div><div style="font-size:12px;color:var(--text2);">Track your weekly balance across the areas that matter most — Marriage, Work, Health, Faith, and more.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <span style="font-size:16px;">📬</span>
+          <div><div style="font-size:13px;font-weight:600;margin-bottom:2px;">Daily AI Briefing</div><div style="font-size:12px;color:var(--text2);">Every morning at 6am — your score, your focus for the day, and what needs attention.</div></div>
+        </div>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:32px;">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:24px;">
+        <div style="font-size:12px;color:var(--text2);">🔒 Your data is private and secure. We never sell or share it.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:24px;">
         <div style="font-size:13px;font-weight:600;margin-bottom:12px;">What should we call you?</div>
         <input id="ob-name" type="text" placeholder="First name" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;">
       </div>
