@@ -1181,6 +1181,13 @@
     </div>
     <div class="settings-section">
       <div class="settings-row" style="cursor:default;flex-direction:column;align-items:flex-start;">
+        <div class="settings-label" style="font-weight:600;margin-bottom:4px;">⚖️ Life Balance Goals</div>
+        <div class="settings-value" style="margin-bottom:12px;">Set your weekly task goal for each life category.</div>
+        <div id="lifeGoalsEditor" style="width:100%;"></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-row" style="cursor:default;flex-direction:column;align-items:flex-start;">
         <div class="settings-label" style="font-weight:600;margin-bottom:4px;">🧠 Refine Life Balance Keywords</div>
         <div class="settings-value" style="margin-bottom:12px;">STWRD analyzes your task history and suggests better keywords for each Life Balance category — so your score reflects how you actually live, not generic defaults.</div>
         <button onclick="refineLifeBalance()" id="refineBtn" style="width:100%;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -2464,7 +2471,7 @@ function showView(name) {
   document.getElementById(`nav-${name}`).classList.add('active');
   if (name === 'stats') renderStats();
   if (name === 'progress') renderProgress();
-  if (name === 'settings') { loadHatEditor(); loadDigestSettings(); }
+  if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderLifeGoalsEditor(); }
   if (name === 'today') renderToday();
 }
 
@@ -3419,7 +3426,39 @@ async function resetJourney() {
   }
 }
 
-function dismissAiExplainer() {
+function renderLifeGoalsEditor() {
+  const el = document.getElementById('lifeGoalsEditor');
+  if (!el) return;
+  const cats = userLifeCategories.length > 0 ? userLifeCategories : [];
+  if (cats.length === 0) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text2);">No life categories set up yet.</div>';
+    return;
+  }
+  el.innerHTML = cats.map(cat => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:14px;">${cat.icon || '⚖️'} ${cat.name}</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="updateLifeGoal('${cat.id}', ${cat.goal - 1})" style="width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">−</button>
+        <span id="goal-${cat.id}" style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;min-width:24px;text-align:center;">${cat.goal}</span>
+        <button onclick="updateLifeGoal('${cat.id}', ${cat.goal + 1})" style="width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">+</button>
+        <span style="font-size:11px;color:var(--text2);">tasks/wk</span>
+      </div>
+    </div>`).join('');
+}
+
+async function updateLifeGoal(catId, newGoal) {
+  if (newGoal < 1 || newGoal > 20) return;
+  const cat = userLifeCategories.find(c => c.id === catId);
+  if (!cat) return;
+  cat.goal = newGoal;
+  document.getElementById(`goal-${catId}`).textContent = newGoal;
+  try {
+    await sbClient.from('life_categories').update({ goal: newGoal }).eq('id', catId).eq('user_id', currentUserId);
+    showToast(`✓ ${cat.name} goal updated`);
+  } catch(e) {
+    showToast('❌ Could not save: ' + e.message);
+  }
+}
   document.getElementById('aiExplainerCard').style.display = 'none';
   localStorage.setItem('aiExplainerDismissed', 'true');
 }
