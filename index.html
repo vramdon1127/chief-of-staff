@@ -847,42 +847,27 @@
 
     <!-- Step 5: Life Balance -->
     <div id="ob-step-5" style="display:none;">
-      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Life Balance ⚖️</div>
-      <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:12px;">How do you measure a well-lived life?</div>
-      <div style="background:linear-gradient(135deg,rgba(124,111,239,0.12),rgba(244,114,182,0.08));border:1px solid rgba(124,111,239,0.3);border-radius:12px;padding:14px;margin-bottom:12px;display:flex;gap:10px;align-items:flex-start;">
-        <div style="font-size:18px;flex-shrink:0;margin-top:1px;">⚡</div>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">The more you share, the smarter STWRD starts.</div>
-          <div style="font-size:12px;color:var(--text2);line-height:1.6;">These are <strong style="color:var(--text);">dimensions of life</strong> — areas like Work, Family, and Faith. STWRD tracks how your tasks distribute across them each week and scores your balance. Add keywords that help your AI recognize each area. Don't worry about perfection — STWRD learns and gets sharper over time.</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:8px;opacity:0.7;">e.g. Client invoice → Work · Read scripture → Faith · Gym session → Health</div>
-        </div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Your Life Areas ⚖️</div>
+      <div style="color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:16px;">These are the areas STWRD tracks to calculate your weekly Life Score. We've pre-selected the core ones — deselect any that don't apply to your life.</div>
+
+      <!-- Core areas -->
+      <div id="ob-metrics-list" style="margin-bottom:16px;"></div>
+
+      <!-- Add-ons section -->
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:10px;">More areas to consider</div>
+        <div id="ob-addons-list" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
       </div>
-      <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:12px;margin-bottom:20px;display:flex;gap:8px;align-items:flex-start;">
-        <div style="font-size:14px;flex-shrink:0;">🎩</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.5;"><strong style="color:var(--text);">Your hats are automatically matched.</strong> Tasks in your GNE, Caliber, or other project buckets will be recognized by their project name — no extra setup needed.</div>
-      </div>
-      <div id="ob-metrics-list" style="margin-bottom:32px;"></div>
-      <!-- Add custom category -->
-      <div style="margin-bottom:16px;">
-        <button onclick="toggleAddCategory()" id="addCatBtn" style="width:100%;padding:12px;border-radius:12px;border:2px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ Add Life Balance Category</button>
-        
-        <!-- Add category panel -->
-        <div id="addCatPanel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:10px;">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">New Category</div>
-          
-          <!-- Suggestions -->
-          <div style="margin-bottom:12px;">
-            <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Quick add suggestions</div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;" id="catSuggestions"></div>
-          </div>
-          
-          <div style="display:flex;gap:8px;margin-bottom:10px;">
+
+      <!-- Custom area -->
+      <div style="margin-bottom:24px;">
+        <button onclick="toggleAddCategory()" id="addCatBtn" style="width:100%;padding:11px;border-radius:12px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ Add custom area</button>
+        <div id="addCatPanel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:10px;">
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
             <input id="newCatIcon" type="text" value="✨" maxlength="2" style="width:44px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:16px;text-align:center;outline:none;">
-            <input id="newCatName" type="text" placeholder="Category name..." style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
-            <input id="newCatGoal" type="number" value="1" min="1" max="20" style="width:52px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center;outline:none;">
+            <input id="newCatName" type="text" placeholder="Area name..." style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
           </div>
-          <div style="font-size:11px;color:var(--text2);margin-bottom:10px;">Icon · Name · Weekly goal</div>
-          <button onclick="addCustomCategory()" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Add Category</button>
+          <button onclick="addCustomCategory()" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Add</button>
         </div>
       </div>
 
@@ -2210,13 +2195,13 @@ async function renderStats() {
 
   // Use user's actual categories from DB, fall back to generic defaults
   const baseCats = userLifeCategories.length > 0 ? userLifeCategories : [
-    { name: 'Work', icon: '💼', color: '#60a5fa', keywords: ['work','meeting','email','client','invoice','project'] },
-    { name: 'Family', icon: '🏠', color: '#22d3ee', keywords: ['family','home','kids','spouse','partner','baby'] },
-    { name: 'Health', icon: '💪', color: '#fb923c', keywords: ['health','workout','gym','exercise','doctor','run'] },
-    { name: 'Faith', icon: '🙏', color: '#a78bfa', keywords: ['faith','pray','devotion','bible','worship','sermon','scripture','ministry','spiritual','god'] },
-    { name: 'Finance', icon: '💰', color: '#fbbf24', keywords: ['finance','money','bill','budget','payment','tax'] },
-    { name: 'Growth', icon: '🌱', color: '#38bdf8', keywords: ['growth','learn','read','course','study','skill'] },
-    { name: 'Recharge', icon: '🎮', color: '#6b7280', keywords: ['recharge','rest','relax','game','movie','vacation'] },
+    { name: 'Marriage', icon: '💑', color: '#f472b6', keywords: ['marriage','spouse','wife','husband','partner','date','anniversary'] },
+    { name: 'Parenting', icon: '👨‍👩‍👧‍👦', color: '#22d3ee', keywords: ['kids','children','parenting','school','baby','family','son','daughter'] },
+    { name: 'Work', icon: '💼', color: '#60a5fa', keywords: ['work','meeting','email','client','invoice','project','career','job'] },
+    { name: 'Health', icon: '💪', color: '#fb923c', keywords: ['health','workout','gym','exercise','doctor','run','fitness','sleep'] },
+    { name: 'Faith', icon: '🙏', color: '#a78bfa', keywords: ['faith','pray','devotion','bible','worship','sermon','spiritual','god','church'] },
+    { name: 'Finances', icon: '💰', color: '#fbbf24', keywords: ['finance','money','bill','budget','payment','tax','savings','investment'] },
+    { name: 'Home', icon: '🏠', color: '#34d399', keywords: ['home','house','chores','cleaning','repair','groceries','errands'] },
   ];
 
   // For each category, build keywords from:
@@ -3248,13 +3233,13 @@ const OB_DEFAULT_HATS = [
 ];
 
 const OB_DEFAULT_METRICS = [
-  { name: 'Work', icon: '💼', color: '#60a5fa', goal: 5, keywords: ['meeting','email','client','invoice','audit','booking'], active: true },
-  { name: 'Family', icon: '🏠', color: '#22d3ee', goal: 2, keywords: ['family','home','kids','spouse','partner','baby'], active: true },
-  { name: 'Health', icon: '💪', color: '#fb923c', goal: 3, keywords: ['workout','gym','exercise','run','walk','doctor','health'], active: true },
-  { name: 'Faith', icon: '🙏', color: '#a78bfa', goal: 1, keywords: ['pray','devotion','bible','worship','faith','scripture','sermon','spiritual'], active: true },
-  { name: 'Personal Finance', icon: '💰', color: '#fbbf24', goal: 2, keywords: ['invoice','payment','bill','budget','tax','money'], active: true },
-  { name: 'Growth', icon: '🌱', color: '#38bdf8', goal: 1, keywords: ['learn','read','course','study','research','build','skill'], active: true },
-  { name: 'Recharge', icon: '🎮', color: '#6b7280', goal: 1, keywords: ['rest','relax','movie','game','vacation','break'], active: false },
+  { name: 'Marriage', icon: '💑', color: '#f472b6', goal: 3, keywords: ['spouse','wife','husband','date night','anniversary','marriage','partner'], active: true },
+  { name: 'Parenting', icon: '👨‍👩‍👧‍👦', color: '#22d3ee', goal: 3, keywords: ['kids','children','school','homework','baby','bedtime','pediatrician','parenting'], active: true },
+  { name: 'Work', icon: '💼', color: '#60a5fa', goal: 5, keywords: ['meeting','email','client','invoice','audit','booking','career','job'], active: true },
+  { name: 'Health', icon: '💪', color: '#fb923c', goal: 3, keywords: ['workout','gym','exercise','run','walk','doctor','health','fitness'], active: true },
+  { name: 'Faith', icon: '🙏', color: '#a78bfa', goal: 1, keywords: ['pray','devotion','bible','worship','faith','scripture','sermon','spiritual','church'], active: true },
+  { name: 'Finances', icon: '💰', color: '#fbbf24', goal: 2, keywords: ['invoice','payment','bill','budget','tax','money','savings','investment'], active: true },
+  { name: 'Home', icon: '🏠', color: '#34d399', goal: 2, keywords: ['home','house','chores','cleaning','repair','groceries','errands'], active: true },
 ];
 
 let obHats = [...OB_DEFAULT_HATS];
@@ -3399,44 +3384,48 @@ function renderObMetrics() {
   const el = document.getElementById('ob-metrics-list');
   if (!el) return;
   el.innerHTML = obMetrics.map((m, i) => `
-    <div style="background:var(--surface);border:1px solid ${m.active ? m.color + '40' : 'var(--border)'};border-radius:12px;padding:14px 16px;margin-bottom:8px;transition:all 0.2s;">
-      <div style="display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="toggleMetric(${i})">
-        <span style="font-size:18px;">${m.icon}</span>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:500;color:${m.active ? 'var(--text)' : 'var(--text2)'};">${m.name}</div>
-          ${m.active ? `<div style="font-size:12px;color:var(--text2);">Goal: ${m.goal} task${m.goal !== 1 ? 's' : ''}/week</div>` : '<div style="font-size:12px;color:var(--text2);">Tap to enable</div>'}
-        </div>
-        ${m.active ? `<input type="number" value="${m.goal}" min="1" max="20" onclick="event.stopPropagation()" onchange="obMetrics[${i}].goal=parseInt(this.value)" style="width:48px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center;outline:none;">` : ''}
-        <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${m.active ? m.color : 'var(--border)'};background:${m.active ? m.color : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          ${m.active ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-        </div>
+    <div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid ${m.active ? m.color + '50' : 'var(--border)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all 0.2s;" onclick="toggleMetric(${i})">
+      <span style="font-size:18px;">${m.icon}</span>
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:500;color:${m.active ? 'var(--text)' : 'var(--text2)'};">${m.name}</div>
+        <div style="font-size:11px;color:var(--text2);">${m.active ? 'Included in your Life Score' : 'Tap to include'}</div>
       </div>
-      ${m.active ? `
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Keywords that signal ${m.name} <span style="opacity:0.6;">(optional)</span></div>
-          <input type="text" 
-            placeholder="Type keywords separated by commas..."
-            value="${m.context || ''}"
-            onclick="event.stopPropagation()"
-            onchange="obMetrics[${i}].context=this.value"
-            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;margin-bottom:5px;">
-          <div style="font-size:11px;color:var(--text2);opacity:0.5;padding:0 2px;">e.g. ${m.name === 'Faith' ? 'church name, pastor, Bible, small group, prayer' : m.name === 'Health' ? 'gym name, workout type, walk, therapy' : m.name === 'Family' ? 'spouse name, kids names, date night' : m.name === 'Recharge' ? 'hobby, show name, game, vacation' : m.name === 'Personal Finance' ? 'budget, debt payoff, savings, mortgage' : m.name === 'Growth' ? 'course name, skill, book, side project' : m.name === 'Work' ? 'company name, tools, acronyms you use' : 'people names, place names, tools'}</div>
-        </div>` : ''}
+      <div style="width:22px;height:22px;border-radius:50%;border:2px solid ${m.active ? m.color : 'var(--border)'};background:${m.active ? m.color : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;">
+        ${m.active ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+      </div>
     </div>`).join('');
+  renderObAddons();
+}
+
+function renderObAddons() {
+  const el = document.getElementById('ob-addons-list');
+  if (!el) return;
+  const existing = obMetrics.map(m => m.name.toLowerCase());
+  const available = CAT_SUGGESTIONS.filter(s => !existing.includes(s.name.toLowerCase()));
+  if (!available.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text2);">All areas added!</div>';
+    return;
+  }
+  el.innerHTML = available.map(s => `
+    <button onclick="quickAddCategory('${s.name}','${s.icon}',${s.goal})"
+      style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;cursor:pointer;transition:all 0.2s;"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--text)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
+      <span>${s.icon}</span> ${s.name}
+    </button>`).join('');
 }
 
 
 // ─── CUSTOM LIFE BALANCE CATEGORIES ──────────────────────────
 const CAT_SUGGESTIONS = [
-  { icon: '💍', name: 'Marriage', goal: 2, keywords: ['date night', 'spouse', 'partner', 'marriage', 'anniversary'] },
-  { icon: '👫', name: 'Friendships', goal: 1, keywords: ['friend', 'hangout', 'coffee', 'catch up', 'social'] },
-  { icon: '🎨', name: 'Creativity', goal: 1, keywords: ['art', 'music', 'write', 'create', 'design', 'make'] },
-  { icon: '🤝', name: 'Service', goal: 1, keywords: ['volunteer', 'serve', 'give', 'donate', 'community', 'nonprofit'] },
-  { icon: '🧠', name: 'Mental Health', goal: 2, keywords: ['therapy', 'journal', 'meditat', 'breathe', 'mental', 'mindful'] },
-  { icon: '😴', name: 'Rest', goal: 1, keywords: ['sleep', 'rest', 'sabbath', 'nap', 'unplug', 'quiet'] },
-  { icon: '👨‍👧', name: 'Parenting', goal: 3, keywords: ['kids', 'school', 'homework', 'bedtime', 'activity', 'pediatrician'] },
-  { icon: '🌍', name: 'Travel', goal: 1, keywords: ['trip', 'travel', 'flight', 'hotel', 'vacation', 'explore'] },
-  { icon: '📖', name: 'Learning', goal: 2, keywords: ['read', 'study', 'course', 'book', 'podcast', 'learn'] },
+  { icon: '🚀', name: 'Side Hustle', goal: 3, keywords: ['side hustle','freelance','business','startup','client','project','launch'] },
+  { icon: '🌱', name: 'Personal Growth', goal: 2, keywords: ['learn','read','course','book','study','skill','improve','podcast'] },
+  { icon: '🎮', name: 'Rest & Recharge', goal: 2, keywords: ['rest','relax','movie','game','vacation','break','unplug','sabbath'] },
+  { icon: '🤝', name: 'Social', goal: 2, keywords: ['friend','hangout','coffee','catch up','social','dinner','party'] },
+  { icon: '🎨', name: 'Creativity', goal: 2, keywords: ['art','music','write','create','design','make','paint','draw'] },
+  { icon: '🙌', name: 'Volunteering', goal: 1, keywords: ['volunteer','serve','give','donate','community','nonprofit','ministry'] },
+  { icon: '🧠', name: 'Mental Health', goal: 2, keywords: ['therapy','journal','meditat','breathe','mental','mindful','counseling'] },
+  { icon: '🌍', name: 'Travel', goal: 1, keywords: ['trip','travel','flight','hotel','vacation','explore','adventure'] },
 ];
 
 function toggleAddCategory() {
@@ -3475,25 +3464,18 @@ function quickAddCategory(name, icon, goal) {
 function addCustomCategory() {
   const name = document.getElementById('newCatName').value.trim();
   const icon = document.getElementById('newCatIcon').value.trim() || '✨';
-  const goal = parseInt(document.getElementById('newCatGoal').value) || 1;
-  if (!name) { showToast('⚠️ Enter a category name'); return; }
-  
+  if (!name) { showToast('⚠️ Enter an area name'); return; }
   const colors = ['#f472b6','#60a5fa','#22d3ee','#fb923c','#a78bfa','#fbbf24','#38bdf8','#6b7280','#10b981'];
   obMetrics.push({
-    name,
-    icon,
+    name, icon,
     color: colors[obMetrics.length % colors.length],
-    goal,
-    keywords: [],
-    active: true,
-    context: ''
+    goal: 2, keywords: [], active: true, context: ''
   });
   document.getElementById('newCatName').value = '';
   document.getElementById('newCatIcon').value = '✨';
-  document.getElementById('newCatGoal').value = '1';
   document.getElementById('addCatPanel').style.display = 'none';
   renderObMetrics();
-  showToast('✓ ' + name + ' added to Life Balance');
+  showToast('✓ ' + name + ' added');
 }
 
 function toggleMetric(i) {
@@ -3653,7 +3635,7 @@ async function deleteLifeArea(catId, name) {
 }
 
 async function addLifeArea() {
-  const icons = ['⭐','🏋️','🎯','💡','🌍','🎨','🤝','🏡','📖','🧘','🎵','🚀','💬','🛠️','🌿'];
+  const icons = ['💑','👨‍👩‍👧‍👦','💼','💪','🙏','💰','🏠','🚀','🌱','🎮','🤝','🎨','🧠','❤️','🎯'];
   const icon = icons[Math.floor(Math.random() * icons.length)];
   const name = 'New Area';
   try {
@@ -3681,7 +3663,16 @@ async function addLifeArea() {
 }
 
 function pickLifeAreaIcon(catId) {
-  const icons = ['💼','🏠','💪','🙏','💰','🌱','🎮','❤️','📚','🎯','🌍','🎨','🤝','🧘','🎵','🚀','⭐','🛠️','🌿','💡'];
+  const icons = [
+    // Core areas
+    '💑','👨‍👩‍👧‍👦','👶','💼','💪','🙏','💰','🏠',
+    // Common add-ons
+    '🚀','🌱','🎮','🤝','🎨','🙌','🧠',
+    // Extended
+    '❤️','📚','🎯','🌍','🧘','🎵','🛠️','🌿','💡','⭐',
+    '🏋️','🏃','🍎','☕','✈️','🎓','🏆','🌸','🎪','🔥',
+    '💬','📝','🎭','🌙','☀️','🌊','🦋','🕊️','🌺','🎊'
+  ];
   const picker = document.createElement('div');
   picker.id = 'icon-picker';
   picker.style.cssText = `position:fixed;z-index:999;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-wrap:wrap;gap:8px;max-width:260px;box-shadow:0 8px 32px rgba(0,0,0,0.4);`;
