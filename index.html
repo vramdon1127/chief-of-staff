@@ -1486,16 +1486,28 @@ window.addEventListener('load', async () => {
       window.location.hash = '';
     }
 
-    // Race getSession against a timeout — it can hang on Safari
-    const sessionResult = await Promise.race([
-      sbClient.auth.getSession(),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('getSession timeout')), 3000))
-    ]).catch(err => {
-      console.warn('[STWRD] getSession failed:', err.message);
-      return { data: { session: null } };
-    });
+    // Check existing session directly from localStorage (sbClient.auth.getSession hangs on Safari)
+    let session = null;
+    try {
+      const raw = localStorage.getItem('stwrd-auth');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const maybeSess = parsed?.access_token ? parsed : parsed?.currentSession;
+        if (maybeSess?.access_token && maybeSess?.user) {
+          // Check expiry if present
+          const expiresAt = maybeSess.expires_at;
+          const nowSec = Math.floor(Date.now() / 1000);
+          if (!expiresAt || expiresAt > nowSec) {
+            session = maybeSess;
+          } else {
+            console.log('[STWRD] Stored session expired, needs refresh');
+          }
+        }
+      }
+    } catch(e) {
+      console.warn('[STWRD] Failed to read session from localStorage:', e);
+    }
 
-    const session = sessionResult?.data?.session;
     clearTimeout(failsafe);
 
     if (!session) {
