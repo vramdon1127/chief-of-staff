@@ -1969,6 +1969,10 @@ function populateHatSelectors() {
   if (editHat) editHat.innerHTML = options;
 }
 
+function renderTasks() {
+  renderHatBuckets();
+}
+
 function renderHatBuckets() {
   const el = document.getElementById('hatBuckets');
   if (!el) return;
