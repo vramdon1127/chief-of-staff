@@ -1458,13 +1458,17 @@ function hideAuthScreens() {
 }
 
 async function signInWithGoogle() {
-  const { error } = await sbClient.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: window.location.origin
-    }
-  });
-  if (error) showToast('❌ Sign in failed: ' + error.message);
+  try {
+    const { error } = await sbClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) showToast('❌ Sign in failed: ' + error.message);
+  } catch(e) {
+    showToast('❌ Error: ' + e.message);
+  }
 }
 
 function toggleUserMenu() {
