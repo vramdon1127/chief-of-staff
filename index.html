@@ -2385,8 +2385,8 @@ function renderToday() {
 }
 
 function renderTodayCard(task, type) {
-  const borderColor = type === 'overdue' ? 'var(--p1)' : type === 'today' ? 'var(--done)' : 'var(--border)';
-  const accentColor = type === 'overdue' ? 'var(--p1)' : type === 'today' ? 'var(--done)' : 'var(--border)';
+  const borderColor = type === 'overdue' ? 'var(--p1)' : type === 'today' ? 'var(--p1)' : 'var(--border)';
+  const accentColor = type === 'overdue' ? 'var(--p1)' : type === 'today' ? 'var(--p1)' : type === 'upcoming' ? 'var(--p2)' : 'var(--border)';
   const dueLabel = type === 'overdue' ? `Due ${task.due_date}` : type === 'upcoming' ? `Due ${task.due_date}` : 'Due Today';
   
   return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;">
