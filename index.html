@@ -1016,6 +1016,26 @@
       </button>
     </div>
 
+    <!-- AI CATEGORIES EXPLAINER — shown once, dismissible -->
+    <div id="aiExplainerCard" style="display:none;background:var(--surface);border:1px solid rgba(124,111,239,0.3);border-radius:16px;padding:16px;margin-bottom:20px;position:relative;">
+      <button onclick="dismissAiExplainer()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;line-height:1;">×</button>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:10px;">🧠 How STWRD sorts your tasks</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="background:rgba(16,185,129,0.15);color:var(--done);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;">AI Complete</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.5;">AI can fully handle this for you — draft the email, write the doc, create the plan. One tap to run it.</div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="background:rgba(56,189,248,0.15);color:var(--ai-assist);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;">AI Assist</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.5;">AI can help you think it through or prep it — but you need to take the final action.</div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="background:rgba(148,163,184,0.15);color:var(--manual);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;">Manual</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.5;">Only you can do this one. STWRD tracks it so nothing falls through the cracks.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- PROJECT BUCKETS VIEW -->
     <div id="hatBuckets"></div>
 
@@ -1331,6 +1351,7 @@ async function initApp(user) {
   if (inviteToken) acceptInvite(inviteToken);
   setTimeout(saveWeeklySnapshot, 5000);
   setupRealtime();
+  maybeShowAiExplainer();
   
   // Load settings
   const apiKey = currentUserProfile?.anthropic_key;
@@ -3167,6 +3188,18 @@ function resetCopyBtn() {
     btn.innerHTML = '📋 Copy prompt';
     btn.style.color = '';
     btn.style.borderColor = '';
+  }
+}
+
+function dismissAiExplainer() {
+  document.getElementById('aiExplainerCard').style.display = 'none';
+  localStorage.setItem('aiExplainerDismissed', 'true');
+}
+
+function maybeShowAiExplainer() {
+  if (!localStorage.getItem('aiExplainerDismissed')) {
+    const card = document.getElementById('aiExplainerCard');
+    if (card) card.style.display = 'block';
   }
 }
 
