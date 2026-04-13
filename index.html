@@ -846,14 +846,34 @@
 
     <!-- Step 4: Hats -->
     <div id="ob-step-4" style="display:none;">
-      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Your Hats 🎩</div>
-      <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:8px;">What roles do you carry in life?</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:20px;">
-        <div style="font-size:12px;color:var(--text2);line-height:1.7;">Think about your <strong style="color:var(--text);">jobs</strong>, <strong style="color:var(--text);">businesses</strong>, <strong style="color:var(--text);">family roles</strong>, <strong style="color:var(--text);">side projects</strong>, <strong style="color:var(--text);">ministries</strong> — anything you're responsible for. These become the buckets your tasks live in.</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:8px;opacity:0.7;">Examples: My Business · Day Job · Dad / Mom · Side Hustle · Ministry</div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Your Projects 🎩</div>
+      <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:16px;">Tasks need a home. What are the main areas of your life that generate work?</div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px;">Use your actual names — not generic labels.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div style="background:var(--surface2);border-radius:10px;padding:10px;">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Career / Job</div>
+            <div style="font-size:13px;color:var(--text);">e.g. <span style="color:var(--caliber);">Caliber</span>, <span style="color:var(--caliber);">Google</span>, <span style="color:var(--caliber);">Day Job</span></div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:10px;">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Business / Side Hustle</div>
+            <div style="font-size:13px;color:var(--text);">e.g. <span style="color:var(--gne);">GNE</span>, <span style="color:var(--gne);">My LLC</span>, <span style="color:var(--gne);">Etsy Shop</span></div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:10px;">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Personal</div>
+            <div style="font-size:13px;color:var(--text);">e.g. <span style="color:var(--personal);">Personal</span>, <span style="color:var(--personal);">Home</span>, <span style="color:var(--personal);">Family</span></div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:10px;">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Other</div>
+            <div style="font-size:13px;color:var(--text);">e.g. <span style="color:var(--serveants);">Ministry</span>, <span style="color:var(--serveants);">Nonprofit</span>, <span style="color:var(--serveants);">Creative</span></div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.6;">AI uses these names to automatically sort your tasks into the right bucket. The more specific, the smarter it gets.</div>
       </div>
-      <div id="ob-hats-list" style="margin-bottom:16px;"></div>
-      <button onclick="addObHat()" style="width:100%;padding:14px;border-radius:12px;border:2px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;margin-bottom:32px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ Add Hat</button>
+
+      <div id="ob-hats-list" style="margin-bottom:12px;"></div>
+      <button onclick="addObHat()" style="width:100%;padding:12px;border-radius:12px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;margin-bottom:24px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ Add Project</button>
       <div style="display:flex;gap:10px;">
         <button onclick="obBack(4)" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">← Back</button>
         <button onclick="obNext(4)" style="flex:2;padding:14px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;">Continue →</button>
