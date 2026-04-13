@@ -1692,7 +1692,7 @@ async function loadCorrections() {
 function setupRealtime() {
   setInterval(async () => {
     try {
-      const { data } = await sbClient.from('tasks').select('*').eq('user_id', currentUserId).neq('status', 'done').order('created_at', { ascending: false }).limit(100);
+      const data = await sbFetch(`tasks?user_id=eq.${currentUserId}&status=neq.done&order=created_at.desc&limit=100`);
       const newTasks = data || [];
       const oldIds = JSON.stringify(tasks.map(t => t.id + t.status));
       const newIds = JSON.stringify(newTasks.map(t => t.id + t.status));
@@ -1801,37 +1801,27 @@ async function loadTasks() {
       showToast('⚠️ Not logged in');
       return;
     }
-    const { data, error } = await sbClient
-      .from('tasks')
-      .select('*')
-      .eq('user_id', currentUserId)
-      .neq('status', 'done')
-      .order('created_at', { ascending: false })
-      .limit(100);
-    if (error) throw error;
+    const data = await sbFetch(`tasks?user_id=eq.${currentUserId}&status=neq.done&order=created_at.desc&limit=100`);
     tasks = data || [];
     renderTasks();
     renderStats();
   } catch (e) {
-    showToast('⚠️ Could not load tasks: ' + (e.message || e.code || JSON.stringify(e)));
+    showToast('⚠️ Could not load tasks: ' + (e.message || JSON.stringify(e)));
     console.error('loadTasks error:', e);
   }
 }
 
 async function saveTask(task) {
-  const { data, error } = await sbClient.from('tasks').insert({ ...task, user_id: currentUserId }).select();
-  if (error) throw error;
-  return data?.[0];
+  const data = await sbFetch('tasks', 'POST', { ...task, user_id: currentUserId });
+  return Array.isArray(data) ? data[0] : data;
 }
 
 async function updateTask(id, updates) {
-  const { error } = await sbClient.from('tasks').update(updates).eq('id', id).eq('user_id', currentUserId);
-  if (error) throw error;
+  await sbFetch(`tasks?id=eq.${id}&user_id=eq.${currentUserId}`, 'PATCH', updates);
 }
 
 async function deleteTask(id) {
-  const { error } = await sbClient.from('tasks').delete().eq('id', id).eq('user_id', currentUserId);
-  if (error) throw error;
+  await sbFetch(`tasks?id=eq.${id}&user_id=eq.${currentUserId}`, 'DELETE');
 }
 
 // ─── PROCESS TASK ─────────────────────────────────────────────
