@@ -1809,7 +1809,7 @@ function renderHatBuckets() {
 function openHat(name) {
   currentHat = name;
   currentHatFilter = 'all';
-  const proj = PROJECTS.find(p => p.name === name);
+  const proj = userHats.find(p => p.name === name) || PROJECTS.find(p => p.name === name) || { name, icon: '📋' };
   document.getElementById('hatBuckets').style.display = 'none';
   document.getElementById('hatDetail').style.display = 'block';
   document.getElementById('hatDetailTitle').innerHTML = `${proj.icon} ${proj.name}`;
