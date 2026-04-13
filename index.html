@@ -725,7 +725,14 @@
 
 
 <!-- AUTH SCREEN -->
-<div id="authScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;">
+<!-- Initial loading splash (hidden once auth check completes) -->
+<div id="initialSplash" style="position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+  <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;background:linear-gradient(135deg,var(--accent),#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">STWRD</div>
+  <div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+</div>
+
+<div id="authScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;align-items:center;justify-content:center;padding:24px;">
   <div style="width:100%;max-width:400px;text-align:center;">
     <div style="font-family:'Syne',sans-serif;font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;letter-spacing:-1px;">STWRD</div>
     <div style="color:var(--text);font-size:16px;font-weight:600;margin-bottom:4px;">Your household. Managed.</div>
@@ -1370,6 +1377,7 @@ const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     storage: window.localStorage,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    flowType: 'pkce',
   }
 });
 
@@ -1488,6 +1496,8 @@ async function loadProfile(user) {
 
 // ─── AUTH FUNCTIONS ────────────────────────────────────────────
 function showAuthScreen() {
+  const splash = document.getElementById('initialSplash');
+  if (splash) splash.style.display = 'none';
   document.getElementById('authScreen').style.display = 'flex';
   document.getElementById('onboardingScreen').style.display = 'none';
   document.querySelector('header').style.display = 'none';
@@ -1498,6 +1508,8 @@ function showAuthScreen() {
 }
 
 function hideAuthScreens() {
+  const splash = document.getElementById('initialSplash');
+  if (splash) splash.style.display = 'none';
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('onboardingScreen').style.display = 'none';
   document.querySelector('header').style.display = 'flex';
@@ -3890,12 +3902,10 @@ function obBack(step) {
 }
 
 async function completeOnboarding() {
-  console.log('[STWRD] completeOnboarding: START');
   const name = document.getElementById('ob-name').value.trim();
   const apiKey = document.getElementById('ob-apikey').value.trim();
   const email = document.getElementById('ob-email').value.trim();
   const aiContext = document.getElementById('ob-ai-context')?.value.trim() || '';
-  console.log('[STWRD] completeOnboarding: inputs read', { hasApiKey: !!apiKey, email, hasContext: !!aiContext });
 
   if (!apiKey) { showToast('⚠️ Please paste your API key first'); return; }
   if (!email) { showToast('⚠️ Please enter your digest email'); return; }
@@ -3909,7 +3919,6 @@ async function completeOnboarding() {
     localStorage.setItem('digestEmail', email);
     localStorage.setItem('userName', name);
 
-    console.log('[STWRD] Reading auth token from localStorage...');
     // Read token directly from localStorage — tries custom storageKey first, then default
     // (avoids a known supabase-js getSession() hang on some mobile browsers)
     let authToken = null;
@@ -3917,7 +3926,6 @@ async function completeOnboarding() {
     const candidateKeys = ['stwrd-auth', 'sb-fnnegalrrdzcgoelljmi-auth-token'];
     for (const k of candidateKeys) {
       const raw = localStorage.getItem(k);
-      console.log('[STWRD] key', k, 'present?', !!raw);
       if (!raw) continue;
       try {
         const parsed = JSON.parse(raw);
@@ -3925,18 +3933,15 @@ async function completeOnboarding() {
         if (sess?.access_token) {
           authToken = sess.access_token;
           sessionUserId = sess?.user?.id || sess?.user_id || null;
-          console.log('[STWRD] token found via key', k, 'userId:', sessionUserId);
           break;
         }
-      } catch(e) { console.warn('[STWRD] parse failed for', k, e); }
+      } catch(e) { /* try next key */ }
     }
     if (!authToken) {
       throw new Error('No active session found — please sign out and sign in again');
     }
     if (sessionUserId) currentUserId = sessionUserId;
-    console.log('[STWRD] currentUserId:', currentUserId);
     const directFetch = async (path, method, body) => {
-      console.log('[STWRD] directFetch START', method, path);
       const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
         method,
         headers: {
@@ -3947,10 +3952,8 @@ async function completeOnboarding() {
         },
         body: body ? JSON.stringify(body) : undefined,
       });
-      console.log('[STWRD] directFetch DONE', method, path, 'status:', res.status);
       if (!res.ok) {
         const err = await res.text();
-        console.error('[STWRD] directFetch ERROR', method, path, err);
         throw new Error(err);
       }
     };
