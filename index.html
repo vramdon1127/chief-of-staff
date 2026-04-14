@@ -937,9 +937,7 @@
         <input id="ob-email" type="email" placeholder="you@email.com" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;">
       </div>
 
-      <div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:32px;">
-        <div style="font-size:12px;color:var(--text2);line-height:1.6;">🤖 AI processing is included free during beta — no API key needed.</div>
-      </div>
+<div style="margin-bottom:32px;"></div>
 
       <div style="display:flex;gap:10px;">
         <button onclick="obBack(6)" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">← Back</button>
@@ -1174,23 +1172,7 @@
   </div>
   <!-- SETTINGS VIEW -->
   <div class="view" id="view-settings">
-    <div class="settings-section">
-      <div class="settings-row" style="flex-direction: column; align-items: flex-start; cursor: default;">
-        <div class="settings-label" style="margin-bottom: 8px; font-weight: 600;">🤖 AI Provider</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;margin-bottom:12px;">
-          <button id="providerBtnClaude" onclick="switchProvider('claude')" style="padding:10px;border-radius:10px;border:2px solid var(--accent);background:rgba(124,111,239,0.15);color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.2s;">Claude</button>
-          <button id="providerBtnChatgpt" onclick="switchProvider('chatgpt')" style="padding:10px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.2s;">ChatGPT</button>
-        </div>
-        <div class="settings-label" id="apiKeyLabel" style="margin-bottom: 4px; font-weight: 600;">Anthropic API Key</div>
-        <div class="settings-value" id="apiKeyDesc">Optional — AI is included free during beta. Add your own key to use your personal Claude account.</div>
-        <input type="password" class="api-input" id="apiKeyInput" placeholder="sk-ant-..." value="">
-        <a id="apiKeyLink" href="https://console.anthropic.com/settings/keys" target="_blank" style="font-size:12px;color:var(--accent);margin-bottom:8px;display:block;">🔗 Get your Claude API key →</a>
-        <div style="background:rgba(124,111,239,0.08);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--text2);line-height:1.6;">
-          🔒 Your key is stored only on your device. We never see it — it goes straight from your phone to the AI provider. Think of it like batteries for the AI.
-        </div>
-        <button class="save-btn" onclick="saveApiKey()">Save API Key</button>
-      </div>
-    </div>
+
     <div class="settings-section">
       <div class="settings-row" style="flex-direction:column;align-items:flex-start;cursor:default;">
         <div class="settings-label" style="font-weight:600;margin-bottom:4px;">📬 Daily Digest Email</div>
@@ -1597,10 +1579,7 @@ async function initApp(user) {
   maybeShowAiExplainer();
   
   // Load settings
-  const apiKey = currentUserProfile?.anthropic_key;
-  if (apiKey) localStorage.setItem('apiKey', apiKey);
-  const apiKeyEl = document.getElementById('apiKeyInput');
-  if (apiKeyEl && apiKey) apiKeyEl.value = apiKey;
+
 }
 
 async function loadProfile(user) {
@@ -2782,7 +2761,7 @@ function showView(name) {
   document.getElementById(`nav-${name}`).classList.add('active');
   if (name === 'stats') renderStats();
   if (name === 'progress') renderProgress();
-  if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderKeywordEditor(); renderLifeAreasEditor(); initProviderToggle(); }
+  if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderKeywordEditor(); renderLifeAreasEditor(); }
   if (name === 'today') renderToday();
 }
 
