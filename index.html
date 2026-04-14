@@ -807,9 +807,11 @@
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:24px;">
         <div style="font-size:12px;color:var(--text2);">🔒 Your data is private and secure. We never sell or share it.</div>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:24px;">
-        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">What should we call you?</div>
-        <input id="ob-name" type="text" placeholder="First name" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;">
+      <div style="background:var(--surface);border:1px solid var(--accent);border-radius:16px;padding:20px;margin-bottom:24px;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));"></div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;">What's your first name? 👋</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">This is how STWRD will address you.</div>
+        <input id="ob-name" type="text" placeholder="Type your first name here..." autofocus style="width:100%;background:var(--surface2);border:2px solid var(--accent);border-radius:10px;padding:14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:17px;outline:none;">
       </div>
       <button onclick="obNextSkip2()" style="width:100%;padding:16px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;">Let's build it →</button>
     </div>
@@ -1185,7 +1187,7 @@
     <div class="settings-section">
       <div class="settings-row" style="flex-direction:column;align-items:flex-start;cursor:default;">
         <div class="settings-label" style="font-weight:600;margin-bottom:4px;">📬 Daily Digest Email</div>
-        <div class="settings-value" style="margin-bottom:8px;">Delivered at 7am CT every morning</div>
+        <div class="settings-value" style="margin-bottom:8px;">Delivered at 6am CT every morning</div>
         <input type="email" class="api-input" id="digestEmailInput" placeholder="you@email.com">
         <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-top:8px;">
           <div style="font-size:12px;color:var(--text2);">📬 Digest emails are sent automatically — no extra setup needed.</div>
@@ -3908,7 +3910,7 @@ function copyAiPrompt() {
 function resetCopyBtn() {
   const btn = document.querySelector('[onclick="copyAiPrompt()"]');
   if (btn) {
-    btn.innerHTML = '📋 Copy prompt';
+    btn.innerHTML = '📋 Copy that prompt';
     btn.style.color = '';
     btn.style.borderColor = '';
   }
@@ -4345,6 +4347,7 @@ async function completeOnboarding() {
     setupRealtime();
     maybeShowAiExplainer();
     showToast('✨ Welcome to STWRD, ' + name + '!');
+    setTimeout(() => showToast('👫 Tip: tap the Partner button to invite your partner!'), 3500);
 
     // Save profile + mark onboarding complete in background
     setTimeout(async () => {
