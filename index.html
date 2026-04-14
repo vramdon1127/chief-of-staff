@@ -926,27 +926,19 @@
 
     <!-- Step 6: Connect AI + Digest -->
     <div id="ob-step-6" style="display:none;">
-      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Connect Your AI 🔌</div>
-      <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:16px;">To process your tasks and send your daily digest, STWRD needs to talk to your AI directly.</div>
-      
-      <!-- API Key section - dynamic based on AI choice -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;position:relative;overflow:hidden;">
-        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));"></div>
-        <div id="ob-api-label" style="font-size:13px;font-weight:600;margin-bottom:4px;">Your AI Connection Key</div>
-        <div id="ob-api-help" style="font-size:12px;color:var(--text2);margin-bottom:10px;">Loading instructions...</div>
-        <input id="ob-apikey" type="password" placeholder="Paste your key here..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;margin-bottom:8px;">
-        <a id="ob-api-link" href="https://console.anthropic.com" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;">→ Get your free key here</a>
-      </div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Almost there! 🎉</div>
+      <div style="color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:24px;">Just add your email to get your daily digest and you're in.</div>
 
       <!-- Digest email -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Daily Digest Email 📬</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Your Life Score, today's tasks, and one AI focus recommendation — every morning.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Your Life Score, today's tasks, and one AI focus — every morning at 6am CT.</div>
         <input id="ob-email" type="email" placeholder="you@email.com" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;">
       </div>
 
       <div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:32px;">
-        <div style="font-size:12px;color:var(--text2);line-height:1.6;">🔒 Your key is stored securely and only used to power your STWRD experience. We never share it.</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6;">🤖 AI processing is included free during beta — no API key needed.</div>
       </div>
 
       <div style="display:flex;gap:10px;">
@@ -1190,7 +1182,7 @@
           <button id="providerBtnChatgpt" onclick="switchProvider('chatgpt')" style="padding:10px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.2s;">ChatGPT</button>
         </div>
         <div class="settings-label" id="apiKeyLabel" style="margin-bottom: 4px; font-weight: 600;">Anthropic API Key</div>
-        <div class="settings-value" id="apiKeyDesc">Required to process tasks with Claude AI</div>
+        <div class="settings-value" id="apiKeyDesc">Optional — AI is included free during beta. Add your own key to use your personal Claude account.</div>
         <input type="password" class="api-input" id="apiKeyInput" placeholder="sk-ant-..." value="">
         <a id="apiKeyLink" href="https://console.anthropic.com/settings/keys" target="_blank" style="font-size:12px;color:var(--accent);margin-bottom:8px;display:block;">🔗 Get your Claude API key →</a>
         <div style="background:rgba(124,111,239,0.08);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--text2);line-height:1.6;">
@@ -1923,12 +1915,7 @@ async function processTask() {
   const raw = input.value.trim();
   if (!raw) return;
 
-  const apiKey = localStorage.getItem('apiKey');
-  if (!apiKey) {
-    showToast('⚠️ Add your API key in Settings first');
-    showView('settings');
-    return;
-  }
+  const apiKey = localStorage.getItem('apiKey') || null; // server uses env key if null
 
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
@@ -2063,8 +2050,7 @@ async function runAiTask(taskId, mode = 'complete') {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
 
-  const apiKey = localStorage.getItem('apiKey');
-  if (!apiKey) { showToast('⚠️ Add your API key in Settings'); return; }
+  const apiKey = localStorage.getItem('apiKey') || null;
 
   currentAiTaskId = taskId;
 
@@ -2697,8 +2683,8 @@ function refreshAdvisor() {
 }
 
 async function loadAiAdvisor(active, today, completionRate, completedThisWeek, lifeScores = []) {
-  const apiKey = localStorage.getItem('apiKey');
-  if (!apiKey || active.length === 0) {
+  const apiKey = localStorage.getItem('apiKey') || null;
+  if (active.length === 0) {
     const el = document.getElementById('aiAdvisorContent');
     if (el) el.innerHTML = '<span style="color:var(--text2);">Add tasks and an API key to get AI insights.</span>';
     return;
@@ -4176,6 +4162,28 @@ document.addEventListener('touchmove', function(e) {
     }
   }
 }, { passive: false });
+
+function obNextSkip2() {
+  const name = document.getElementById('ob-name').value.trim();
+  if (!name) { showToast('⚠️ Please enter your name'); return; }
+  selectedAI = 'claude'; // default
+  document.getElementById('ob-step-1').style.display = 'none';
+  document.getElementById('ob-step-3').style.display = 'block';
+  document.getElementById('step-dot-1').classList.remove('active');
+  document.getElementById('step-dot-1').classList.add('done');
+  document.getElementById('step-dot-3').classList.add('active');
+  document.getElementById('onboardingScreen').scrollTop = 0;
+}
+
+function obBackSkip2(step) {
+  document.getElementById(`ob-step-${step}`).style.display = 'none';
+  document.getElementById('ob-step-1').style.display = 'block';
+  document.getElementById(`step-dot-${step}`).classList.remove('active');
+  document.getElementById('step-dot-3').classList.remove('done');
+  document.getElementById('step-dot-1').classList.remove('done');
+  document.getElementById('step-dot-1').classList.add('active');
+  document.getElementById('onboardingScreen').scrollTop = 0;
+}
 
 function obNextSkip2() {
   const name = document.getElementById('ob-name').value.trim();
