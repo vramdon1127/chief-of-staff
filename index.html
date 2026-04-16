@@ -2009,7 +2009,7 @@ Added by: ${currentUser}`;
     const task = {
       content: raw,
       cleaned_task: get('TASK'),
-      category: get('CATEGORY'),
+      category: (() => { const c = get('CATEGORY'); if (c.includes('AI Complete')) return 'AI Complete'; if (c.includes('AI Assist')) return 'AI Assist'; if (c.includes('Manual')) return 'Manual'; return 'Manual'; })(),
       project: get('PROJECT'),
       priority: get('PRIORITY'),
       due_date: dueDate,
