@@ -1605,6 +1605,11 @@ window.addEventListener('load', async () => {
 // Handle auth state changes
 sbClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
+    // Stash Google provider token for Calendar API calls. sessionStorage (not localStorage)
+    // because it clears on tab close — safer surface for a bearer token that expires in ~1hr.
+    if (session.provider_token) {
+      sessionStorage.setItem('google_provider_token', session.provider_token);
+    }
     // Replace history so swipe-back doesn't return to login screen,
     // but preserve the ?invite= param so partner linking still works
     const url = new URL(window.location.href);
@@ -1613,6 +1618,7 @@ sbClient.auth.onAuthStateChange(async (event, session) => {
     window.history.replaceState(null, '', url.pathname + cleanSearch);
     await initApp(session.user);
   } else if (event === 'SIGNED_OUT') {
+    sessionStorage.removeItem('google_provider_token');
     showAuthScreen();
   }
 });
@@ -1750,14 +1756,47 @@ async function refreshSession(refreshToken) {
   return sessionPayload;
 }
 
+// ─── GOOGLE CALENDAR (Phase 1) ───────────────────────────────
+// Dev-testable only for now — call from DevTools: fetchCalendarPrimary()
+// Digest integration ("This Week Together") lands in Phase 2.
+async function fetchCalendarPrimary() {
+  const token = sessionStorage.getItem('google_provider_token');
+  if (!token) {
+    console.warn('[Calendar] No Google provider token in session — user needs to sign out and back in to pick up the Calendar scope.');
+    return null;
+  }
+  const timeMin = new Date().toISOString();
+  const timeMax = new Date(Date.now() + 7 * 864e5).toISOString();
+  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime&maxResults=50`;
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) {
+      console.warn('[Calendar] Token expired or revoked (401). MVP approach: user needs to re-auth. Proper refresh flow is Phase 2+.');
+      return null;
+    }
+    if (!res.ok) {
+      console.error('[Calendar] Fetch failed:', res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    console.log(`[Calendar] ${data.items?.length || 0} events in next 7 days:`, data.items);
+    return data.items || [];
+  } catch (e) {
+    console.error('[Calendar] Network error:', e);
+    return null;
+  }
+}
+
 async function signInWithGoogle() {
   try {
     const { error } = await sbClient.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly',
         queryParams: {
           prompt: 'select_account',
+          access_type: 'offline',
         },
       }
     });

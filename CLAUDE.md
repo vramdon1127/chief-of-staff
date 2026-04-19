@@ -51,17 +51,19 @@ Work these in roughly this order:
 5. Mobile audit
 6. Unwind Zapier (only after Todoist routing bug is confirmed stable)
 7. Update API key life area
+8. **Calendar integration Phase 1** — OAuth scope expansion + client-side fetch, dev-testable. Pulled from Season 2 on 2026-04-19 (founder decision).
 
 ## NEXT (May–Jun)
 
-8. Chat-to-task (Claude offers "want me to add that as a STWRD task?" and writes via Supabase)
-9. Sort by priority in project view
-10. Add tasks from within project view
-11. Relationship / family nudges
-12. Calendar time-blocking
-13. Task notes field
-14. Dark theme digest
-15. Inbox triage — AI monitors Gmail, flags urgent / actionable / noise, surfaces in digest or dedicated tab
+9. Calendar integration Phase 2 — "This Week Together" digest section with merge + conflict detection
+10. Chat-to-task (Claude offers "want me to add that as a STWRD task?" and writes via Supabase)
+11. Sort by priority in project view
+12. Add tasks from within project view
+13. Relationship / family nudges
+14. Calendar time-blocking
+15. Task notes field
+16. Dark theme digest
+17. Inbox triage — AI monitors Gmail, flags urgent / actionable / noise, surfaces in digest or dedicated tab
 
 ## LATER (Jun–Aug)
 
@@ -90,7 +92,9 @@ Work these in roughly this order:
 
 ## Season 2 vision (do not build yet — high priority context)
 
-One-tap OAuth integrations: Google Calendar, Gmail, Plaid. Couples connect accounts Mint/YNAB-style, STWRD merges both partners' data into the digest automatically. Let beta couples signal which integrations matter first.
+One-tap OAuth integrations: ~~Google Calendar,~~ Gmail, Plaid. Couples connect accounts Mint/YNAB-style, STWRD merges both partners' data into the digest automatically. Let beta couples signal which integrations matter first.
+
+**Note:** Google Calendar pulled into NOW on 2026-04-19 (founder decision — "game changer mode"). Phase 1: OAuth scope + client-side fetch. Phase 2: "This Week Together" digest merge with conflict detection. Gmail + Plaid remain gated on beta-couple feedback.
 
 ---
 
