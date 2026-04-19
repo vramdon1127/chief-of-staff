@@ -2324,6 +2324,11 @@ function stripAiPreamble(raw) {
     /^(draft|message|email|text|post)[:\s]/i,
     /^feel free\b/i,
     /^hope this helps\b/i,
+    // Metadata headers: "**To: +1 (334) 750-4776**", "**Subject: …**".
+    // Bolded form matches broadly; unbolded form only when the value is phone-number-ish,
+    // to avoid eating real message openers like "To: Whom it may concern".
+    /^\*\*(to|recipient|subject|from|sending to|cc|bcc)\s*:[^*\n]*\*\*\s*$/i,
+    /^(to|recipient|sending to)\s*:\s*\+?[\d\s()\-.]+$/i,
   ];
   const lines = raw.split('\n');
   let start = 0;
@@ -2334,9 +2339,13 @@ function stripAiPreamble(raw) {
     if (introPatterns.some(re => re.test(line))) { start++; continue; }
     break;
   }
-  // Trim trailing "hope this helps" / "let me know" style outros.
+  // Trim trailing outros: "hope this helps", "let me know", plus usage instructions
+  // like "You can copy and paste this into your phone's text app…".
   const outroPatterns = [
     /^(let me know|hope (this|that) helps|feel free|happy to|want me to|would you like)\b/i,
+    /\b(copy and paste|paste (this|it) into|text app|messaging app)\b/i,
+    /\b(send (this|it) (whenever|when you))\b/i,
+    /\b(when you'?re ready|once you'?re ready)\b/i,
   ];
   let end = lines.length;
   while (end > start) {
@@ -2345,9 +2354,16 @@ function stripAiPreamble(raw) {
     if (outroPatterns.some(re => re.test(line))) { end--; continue; }
     break;
   }
-  // Drop decorative separator lines (---, ===, ___, ***, ~~~, etc.).
+  // Drop decorative separator lines (---, ===, ___, ***, ~~~, etc.)
+  // and usage-instruction lines wherever they appear in the middle.
   const separatorRe = /^[-=_*~]{3,}$/;
-  const kept = lines.slice(start, end).filter(line => !separatorRe.test(line.trim()));
+  const instructionRe = /\b(copy and paste|paste (this|it) into|text app|messaging app)\b/i;
+  const kept = lines.slice(start, end).filter(line => {
+    const t = line.trim();
+    if (separatorRe.test(t)) return false;
+    if (instructionRe.test(t)) return false;
+    return true;
+  });
   // Collapse any 3+ consecutive blank lines that the separator removal leaves behind.
   const stripped = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   // Safety net: if parsing ate everything, fall back to the raw text.
