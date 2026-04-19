@@ -1169,11 +1169,6 @@
       </div>
       <div id="hatTaskList"></div>
     </div>
-
-    <!-- BULK ACTIONS BAR (fixed bottom) -->
-    <div id="bulkActionsBar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));z-index:200;max-width:600px;margin:0 auto;box-shadow:0 -8px 24px rgba(0,0,0,0.35);">
-      <button onclick="copySelectedTasks()" id="bulkCopyBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">📋 Copy Selected</button>
-    </div>
   </div>
 
   <!-- STATS VIEW -->
@@ -1280,6 +1275,13 @@
     </div>
   </div>
 </main>
+
+<!-- BULK ACTIONS BAR (body-level so it escapes main's stacking context; z-index sits above nav-bar) -->
+<div id="bulkActionsBar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));z-index:150;box-shadow:0 -8px 24px rgba(0,0,0,0.5);">
+  <div style="max-width:600px;margin:0 auto;">
+    <button onclick="copySelectedTasks()" id="bulkCopyBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">📋 Copy Selected</button>
+  </div>
+</div>
 
 <!-- NAV BAR -->
 <nav class="nav-bar" style="display:none;">
