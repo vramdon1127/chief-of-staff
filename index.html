@@ -1057,6 +1057,16 @@
 </div>
 <div id="partnerOverlay" onclick="togglePartnerPanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:299;"></div>
 
+<!-- BULK MOVE SHEET -->
+<div id="bulkMoveSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);border-radius:24px 24px 0 0;z-index:320;padding:20px 20px calc(32px + env(safe-area-inset-bottom));box-shadow:0 -8px 40px rgba(0,0,0,0.5);animation:slideUp 0.3s ease;max-width:600px;margin:0 auto;max-height:75vh;overflow-y:auto;">
+  <div style="width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px;"></div>
+  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-bottom:4px;">📁 Move to…</div>
+  <div id="bulkMoveSubtitle" style="font-size:13px;color:var(--text2);margin-bottom:16px;"></div>
+  <div id="bulkMoveList"></div>
+  <button onclick="closeBulkMoveSheet()" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-top:12px;">Cancel</button>
+</div>
+<div id="bulkMoveOverlay" onclick="closeBulkMoveSheet()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:319;"></div>
+
 <main style="display:none;">
   <!-- CAPTURE VIEW -->
   <div class="view active" id="view-capture">
@@ -1286,6 +1296,10 @@
     <button onclick="bulkMarkComplete()" id="bulkCompleteBtn" class="bulk-action-btn" style="flex:1;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;line-height:1.2;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;">
       <span style="font-size:18px;">✅</span>
       <span>Complete</span>
+    </button>
+    <button onclick="openBulkMoveSheet()" id="bulkMoveBtn" class="bulk-action-btn" style="flex:1;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;line-height:1.2;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <span style="font-size:18px;">📁</span>
+      <span>Move</span>
     </button>
   </div>
 </div>
@@ -2716,6 +2730,62 @@ function copySelectedTasks() {
     label.textContent = 'Copied!';
     setTimeout(() => { label.textContent = original; }, 2000);
   });
+}
+
+function openBulkMoveSheet() {
+  if (selectedTaskIds.size === 0) return;
+  const hats = (userHats.length > 0 ? userHats : HATS).filter(h => h.name !== currentHat);
+  const subtitle = document.getElementById('bulkMoveSubtitle');
+  const list = document.getElementById('bulkMoveList');
+  const count = selectedTaskIds.size;
+  subtitle.textContent = `Choose a project for ${count} task${count !== 1 ? 's' : ''}. Claude learns from each move.`;
+  if (hats.length === 0) {
+    list.innerHTML = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;color:var(--text2);font-size:13px;">No other projects to move to. Create another project first.</div>`;
+  } else {
+    list.innerHTML = hats.map(h => `
+      <button onclick="bulkMoveToProject('${h.name.replace(/'/g, "\\'")}')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:8px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;text-align:left;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <span style="font-size:22px;">${h.icon}</span>
+        <span style="flex:1;">${h.name}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    `).join('');
+  }
+  document.getElementById('bulkMoveOverlay').style.display = 'block';
+  document.getElementById('bulkMoveSheet').style.display = 'block';
+}
+
+function closeBulkMoveSheet() {
+  document.getElementById('bulkMoveOverlay').style.display = 'none';
+  document.getElementById('bulkMoveSheet').style.display = 'none';
+}
+
+async function bulkMoveToProject(newProject) {
+  const selected = tasks.filter(t => selectedTaskIds.has(t.id) && t.project !== newProject);
+  if (selected.length === 0) { closeBulkMoveSheet(); return; }
+
+  // Log one correction row per moved task so the classifier learns from the pattern.
+  const correctionWrites = selected.map(t => sbFetch('corrections', 'POST', {
+    user_id: currentUserId,
+    original_task: t.cleaned_task || t.content,
+    original_project: t.project,
+    original_category: t.category,
+    corrected_project: newProject,
+    corrected_category: t.category,
+    corrected_priority: t.priority,
+  }).catch(e => console.error('Correction log failed:', e)));
+
+  const taskUpdates = selected.map(t => updateTask(t.id, { project: newProject }));
+
+  await Promise.all([...correctionWrites, ...taskUpdates]);
+
+  // Update local state; moved tasks leave the current hat view.
+  const movedIds = new Set(selected.map(t => t.id));
+  tasks = tasks.map(t => movedIds.has(t.id) ? { ...t, project: newProject } : t);
+
+  closeBulkMoveSheet();
+  exitSelectionMode();
+  renderStats();
+  showToast(`✓ Moved ${selected.length} task${selected.length !== 1 ? 's' : ''} to ${newProject}. Claude will learn from this.`);
 }
 
 async function bulkMarkComplete() {
