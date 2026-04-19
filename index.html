@@ -1987,7 +1987,35 @@ LIFE: [${lifeAreaNames}]
 REASON: [one short sentence why]
 
 Priority guide: P1=urgent/today, P2=important/this week, P3=normal, P4=low/someday
-Category guide: AI Complete=AI can fully do it without the user, AI Assist=needs user's input, Manual=must be done by user alone
+Category guide — pick based on whether AI can produce the core deliverable as text:
+
+AI Complete = AI produces the deliverable. User may still send/post/share it after — that's not disqualifying. The work IS the text.
+Intent words: write, draft, text (verb), email (verb), compose, summarize, outline, create list, post.
+Examples:
+- "Write a thank you note to aunt Sarah" — AI drafts the note; user sends.
+- "Draft a text to my attorney about the court letter" — AI writes the text.
+- "Write a LinkedIn post about Q4 audits" — AI produces the post.
+- "Summarize this meeting transcript" — AI produces the summary.
+- "Draft a follow-up email to Joshua" — AI writes the email.
+
+AI Assist = AI preps, outlines, or drafts, but the user needs to exercise judgment, paste information only they have, or take a non-text action.
+Intent words: research, compare, plan, decide, figure out, call (phone), respond to, reply to, help me.
+Examples:
+- "Research which Oura model makes sense for me" — AI gathers options; user decides based on personal context.
+- "Compare options for STWRD hosting beyond Vercel" — AI lays out tradeoffs; user picks.
+- "Load bank statements to create a budget" — AI structures the budget; user pastes figures AI can't see.
+- "Call the dentist to schedule a cleaning" — AI drafts a script; user places the call.
+- "Respond to mom's text about Thanksgiving" — AI drafts the reply; user sends after approving.
+
+Manual = no meaningful AI deliverable. Task is physical, in-person, or body-required.
+Intent words: pick up, drop off, go to, drive, attend, meet with (in person), body verbs (run, walk, cook, clean).
+Examples:
+- "Pick up dry cleaning"
+- "Go for a 5-mile run"
+- "Drop Crue off at school"
+- "Meet with PwC about SOX controls"
+
+Fallback: when in doubt between AI Complete and AI Assist, choose AI Assist. When in doubt between AI Assist and Manual, choose AI Assist. Bias toward "AI tries to help" — the user can always ignore the offer.
 Due date guide: Extract any date mentioned. Today is ${new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'})}.
 - "today" or "tonight" or "this evening" = today's date
 - "tomorrow" = tomorrow's date
@@ -2025,7 +2053,7 @@ Added by: ${currentUser}`;
     const task = {
       content: raw,
       cleaned_task: get('TASK'),
-      category: (() => { const c = get('CATEGORY'); if (c.includes('AI Complete')) return 'AI Complete'; if (c.includes('AI Assist')) return 'AI Assist'; if (c.includes('Manual')) return 'Manual'; return 'Manual'; })(),
+      category: (() => { const c = get('CATEGORY'); if (c.includes('AI Complete')) return 'AI Complete'; if (c.includes('AI Assist')) return 'AI Assist'; if (c.includes('Manual')) return 'Manual'; return 'AI Assist'; })(),
       project: get('PROJECT'),
       priority: get('PRIORITY'),
       due_date: dueDate,

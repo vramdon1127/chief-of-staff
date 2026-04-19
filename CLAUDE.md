@@ -108,7 +108,12 @@ One goal per loop. Watch output. Fix the failure domain. Don't expand scope mid-
 
 ### Claude category prompt rule
 
-If a task implies "write / draft / text / email / find / research / compare / summarize / create list / give options" → route to **AI Complete**. Current prompt is too vague — needs explicit examples and intent-based reasoning.
+Intent words by bucket:
+
+- **AI Complete**: write, draft, text, email, compose, summarize, outline, create list, post
+- **AI Assist**: research, compare, plan, decide, figure out, call, respond to, reply to, help me
+
+Tasks that produce a text deliverable are AI Complete even if the user still sends/posts it. Tasks needing user judgment, user-specific info, or a non-text follow-up are AI Assist. Physical actions, in-person meetings, or body-required activities are Manual. When in doubt, bias toward AI Assist over Manual — "AI tries to help" beats "AI hides."
 
 ### Session workflow
 
