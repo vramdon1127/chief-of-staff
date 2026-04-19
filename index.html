@@ -2254,8 +2254,8 @@ function escapeHtml(s) {
 }
 
 function copyAiResult() {
-  const el = document.getElementById('aiModalResult');
-  const text = el.innerText || el.textContent;
+  const lastAssistant = [...aiConversation.messages].reverse().find(m => m.role === 'assistant');
+  const text = (lastAssistant?.content ?? document.getElementById('aiModalResult').innerText ?? '').trim();
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copyResultBtn');
     btn.textContent = '✓ Copied!';
