@@ -1278,8 +1278,15 @@
 
 <!-- BULK ACTIONS BAR (body-level so it escapes main's stacking context; z-index sits above nav-bar) -->
 <div id="bulkActionsBar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));z-index:150;box-shadow:0 -8px 24px rgba(0,0,0,0.5);">
-  <div style="max-width:600px;margin:0 auto;">
-    <button onclick="copySelectedTasks()" id="bulkCopyBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">📋 Copy Selected</button>
+  <div style="max-width:600px;margin:0 auto;display:flex;gap:8px;">
+    <button onclick="copySelectedTasks()" id="bulkCopyBtn" class="bulk-action-btn" style="flex:1;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;line-height:1.2;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <span style="font-size:18px;">📋</span>
+      <span>Copy</span>
+    </button>
+    <button onclick="bulkMarkComplete()" id="bulkCompleteBtn" class="bulk-action-btn" style="flex:1;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;line-height:1.2;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <span style="font-size:18px;">✅</span>
+      <span>Complete</span>
+    </button>
   </div>
 </div>
 
@@ -2704,9 +2711,41 @@ function copySelectedTasks() {
   const text = [header, ...lines].join('\n');
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('bulkCopyBtn');
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = '📋 Copy Selected'; }, 2000);
+    const label = btn.querySelector('span:last-child');
+    const original = label.textContent;
+    label.textContent = 'Copied!';
+    setTimeout(() => { label.textContent = original; }, 2000);
   });
+}
+
+async function bulkMarkComplete() {
+  if (selectedTaskIds.size === 0) return;
+  const ids = [...selectedTaskIds];
+  const selected = ids.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+  if (selected.length === 0) return;
+
+  const now = new Date().toISOString();
+  // Mirror the single-task recurring logic from toggleDone.
+  const ops = selected.map(task => {
+    if (task.recurrence && task.recurrence !== 'none') {
+      const next = new Date();
+      if (task.recurrence === 'weekly') next.setDate(next.getDate() + 7);
+      else if (task.recurrence === 'monthly') next.setMonth(next.getMonth() + 1);
+      const nextDue = next.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+      return { id: task.id, updates: { status: 'todo', due_date: nextDue, completed_at: now } };
+    }
+    return { id: task.id, updates: { status: 'done', completed_at: now } };
+  });
+
+  await Promise.all(ops.map(op => updateTask(op.id, op.updates)));
+
+  // Both completed and recurring-reset tasks leave the current view.
+  const removedIds = new Set(ops.map(o => o.id));
+  tasks = tasks.filter(t => !removedIds.has(t.id));
+
+  exitSelectionMode();
+  renderStats();
+  showToast(`✓ ${ops.length} task${ops.length !== 1 ? 's' : ''} completed`);
 }
 
 async function renderStats() {
