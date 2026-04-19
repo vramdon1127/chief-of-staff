@@ -393,6 +393,12 @@
     border-color: var(--accent3);
   }
 
+  .task-card.selection-mode { cursor: pointer; -webkit-user-select: none; user-select: none; }
+  .task-card.selected {
+    border-color: var(--accent);
+    background: rgba(108,99,255,0.06);
+  }
+
   .task-body { flex: 1; min-width: 0; }
 
   .task-title {
@@ -1156,7 +1162,17 @@
         <button class="filter-chip" onclick="setHatFilter('AI Assist',this)">🤝 AI Assist</button>
         <button class="filter-chip" onclick="setHatFilter('Manual',this)">✋ Manual</button>
       </div>
+      <div id="hatSelectionBar" style="display:none;align-items:center;gap:8px;padding:10px 4px 14px;">
+        <button onclick="exitSelectionMode()" style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;">Cancel</button>
+        <div id="hatSelectionCount" style="flex:1;font-size:13px;color:var(--text2);font-family:'DM Sans',sans-serif;"></div>
+        <button id="hatSelectToggleBtn" onclick="toggleSelectAll()" style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;">Select all</button>
+      </div>
       <div id="hatTaskList"></div>
+    </div>
+
+    <!-- BULK ACTIONS BAR (fixed bottom) -->
+    <div id="bulkActionsBar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));z-index:200;max-width:600px;margin:0 auto;box-shadow:0 -8px 24px rgba(0,0,0,0.35);">
+      <button onclick="copySelectedTasks()" id="bulkCopyBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">📋 Copy Selected</button>
     </div>
   </div>
 
@@ -2421,6 +2437,11 @@ function hatColor(name) {
 
 let currentHat = null;
 let currentHatFilter = 'all';
+let selectionMode = false;
+let selectedTaskIds = new Set();
+let lpTimer = null;
+let lpStartX = 0;
+let lpStartY = 0;
 
 function populateHatSelectors() {
   const hats = userHats.length > 0 ? userHats : HATS;
@@ -2494,6 +2515,7 @@ function openHat(name) {
 }
 
 function closeHat() {
+  if (selectionMode) exitSelectionMode();
   currentHat = null;
   document.getElementById('hatDetail').style.display = 'none';
   document.getElementById('hatBuckets').style.display = 'block';
@@ -2515,6 +2537,7 @@ function closeHat() {
 }
 
 function setHatFilter(filter, btn) {
+  if (selectionMode) exitSelectionMode();
   currentHatFilter = filter;
   document.querySelectorAll('#hatFilterBar .filter-chip').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
@@ -2539,11 +2562,16 @@ function renderHatTasks() {
   list.innerHTML = filtered.map(task => {
     const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
     const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
+    const isSelected = selectionMode && selectedTaskIds.has(task.id);
+    const checkChecked = selectionMode ? isSelected : task.status === 'done';
     return `
-    <div class="task-card" id="task-${task.id}">
+    <div class="task-card${selectionMode ? ' selection-mode' : ''}${isSelected ? ' selected' : ''}" id="task-${task.id}" data-task-id="${task.id}"
+      ontouchstart="lpStart(event, '${task.id}')" ontouchmove="lpMove(event)" ontouchend="lpEnd()" ontouchcancel="lpEnd()"
+      onmousedown="lpStart(event, '${task.id}')" onmousemove="lpMove(event)" onmouseup="lpEnd()" onmouseleave="lpEnd()"
+      onclick="taskCardClick(event, '${task.id}')">
       <div class="task-card-top">
-        <div class="task-check ${task.status === 'done' ? 'checked' : ''}" onclick="toggleDone('${task.id}')">
-          ${task.status === 'done' ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+        <div class="task-check ${checkChecked ? 'checked' : ''}" onclick="taskCheckClick(event, '${task.id}')">
+          ${checkChecked ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
         </div>
         <div class="task-body">
           <div class="task-title">${task.cleaned_task || task.content}</div>
@@ -2554,19 +2582,129 @@ function renderHatTasks() {
             ${task.due_date ? `<span class="tag" style="background:rgba(108,99,255,0.1);color:var(--accent);">📅 ${task.due_date.split('-').slice(1).concat(task.due_date.split('-')[0]).join('/')}</span>` : ''}
             ${task.recurrence && task.recurrence !== 'none' ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>` : ''}
           </div>
-          <div class="task-actions">
+          ${selectionMode ? '' : `<div class="task-actions">
             ${viewingPartner ? `<span style="font-size:11px;color:var(--text2);padding:4px 0;">👆 Tap check to help out</span>` : `
             ${task.category === 'AI Complete' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','complete')">🤖 Run with AI</button>` : ''}
             ${task.category === 'AI Assist' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','assist')" style="background:rgba(56,189,248,0.15);color:var(--ai-assist);border-color:rgba(56,189,248,0.3);">🤝 Get AI Help</button>` : ''}
             <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
             <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
             `}
-          </div>
+          </div>`}
           ${task.notes ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.5;border-left:2px solid var(--accent);">📝 ${task.notes}</div>` : ''}
         </div>
       </div>
     </div>`;
   }).join('');
+  renderSelectionChrome();
+}
+
+// ---------- Bulk selection ----------
+
+function lpStart(e, taskId) {
+  if (selectionMode) return; // Already in selection mode, ignore long-press
+  const p = e.touches ? e.touches[0] : e;
+  lpStartX = p.clientX; lpStartY = p.clientY;
+  if (lpTimer) clearTimeout(lpTimer);
+  lpTimer = setTimeout(() => {
+    lpTimer = null;
+    if (navigator.vibrate) navigator.vibrate(10);
+    enterSelectionMode(taskId);
+  }, 500);
+}
+
+function lpMove(e) {
+  if (!lpTimer) return;
+  const p = e.touches ? e.touches[0] : e;
+  if (Math.abs(p.clientX - lpStartX) > 10 || Math.abs(p.clientY - lpStartY) > 10) {
+    clearTimeout(lpTimer); lpTimer = null;
+  }
+}
+
+function lpEnd() {
+  if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+}
+
+function enterSelectionMode(taskId) {
+  selectionMode = true;
+  selectedTaskIds = new Set();
+  if (taskId) selectedTaskIds.add(taskId);
+  renderHatTasks();
+}
+
+function exitSelectionMode() {
+  selectionMode = false;
+  selectedTaskIds = new Set();
+  renderHatTasks();
+}
+
+function toggleTaskSelection(taskId) {
+  if (selectedTaskIds.has(taskId)) selectedTaskIds.delete(taskId);
+  else selectedTaskIds.add(taskId);
+  renderHatTasks();
+}
+
+function taskCheckClick(event, taskId) {
+  event.stopPropagation();
+  if (selectionMode) toggleTaskSelection(taskId);
+  else toggleDone(taskId);
+}
+
+function taskCardClick(event, taskId) {
+  if (!selectionMode) return;
+  // In selection mode, tapping anywhere on the row (except the checkbox, which handles itself) toggles selection.
+  toggleTaskSelection(taskId);
+}
+
+function visibleTaskIds() {
+  let filtered = tasks.filter(t => t.project === currentHat);
+  if (currentHatFilter !== 'all') filtered = filtered.filter(t => t.category === currentHatFilter);
+  return filtered.map(t => t.id);
+}
+
+function toggleSelectAll() {
+  const visible = visibleTaskIds();
+  const allSelected = visible.length > 0 && visible.every(id => selectedTaskIds.has(id));
+  if (allSelected) selectedTaskIds = new Set();
+  else selectedTaskIds = new Set(visible);
+  renderHatTasks();
+}
+
+function renderSelectionChrome() {
+  const filterBar = document.getElementById('hatFilterBar');
+  const selBar = document.getElementById('hatSelectionBar');
+  const bulkBar = document.getElementById('bulkActionsBar');
+  if (!filterBar || !selBar || !bulkBar) return;
+  if (selectionMode) {
+    filterBar.style.display = 'none';
+    selBar.style.display = 'flex';
+    const count = selectedTaskIds.size;
+    document.getElementById('hatSelectionCount').textContent = count === 0 ? 'Tap tasks to select' : `${count} selected`;
+    const visible = visibleTaskIds();
+    const allSelected = visible.length > 0 && visible.every(id => selectedTaskIds.has(id));
+    document.getElementById('hatSelectToggleBtn').textContent = allSelected ? 'Select none' : 'Select all';
+    bulkBar.style.display = count > 0 ? 'block' : 'none';
+  } else {
+    filterBar.style.display = '';
+    selBar.style.display = 'none';
+    bulkBar.style.display = 'none';
+  }
+}
+
+function copySelectedTasks() {
+  const selected = tasks.filter(t => selectedTaskIds.has(t.id));
+  if (selected.length === 0) return;
+  const header = `STWRD Tasks (${selected.length} selected):`;
+  const lines = selected.map(t => {
+    const title = t.cleaned_task || t.content || '';
+    const cat = t.category ? ` [${t.category}]` : '';
+    return `□ ${title}${cat}`;
+  });
+  const text = [header, ...lines].join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('bulkCopyBtn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = '📋 Copy Selected'; }, 2000);
+  });
 }
 
 async function renderStats() {
