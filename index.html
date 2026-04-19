@@ -1371,10 +1371,10 @@
       </div>
       <!-- Tweak bar -->
       <div style="display:flex;gap:8px;align-items:center;">
-        <input id="tweakInput" type="text" placeholder="Tweak it… make it shorter, more formal, add a date…"
+        <input id="tweakInput" type="text" placeholder="Reply or refine…"
           style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;"
-          onkeydown="if(event.key==='Enter') tweakAiResult()">
-        <button onclick="tweakAiResult()" id="tweakBtn" style="padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">↻ Redo</button>
+          onkeydown="if(event.key==='Enter') submitAiTurn()">
+        <button onclick="submitAiTurn()" id="tweakBtn" style="padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">Send</button>
       </div>
     </div>
   </div>
@@ -2059,14 +2059,14 @@ Added by: ${currentUser}`;
   btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Process with AI';
 }
 
-// ─── AI COMPLETE TASK ─────────────────────────────────────────
-let aiTaskContext = ''; // stores the base prompt for tweaking
+// ─── AI COMPLETE / ASSIST — multi-turn ────────────────────────
+const CONVERSATION_SOFT_LIMIT = 15; // total messages before "start fresh" CTA appears
+
+let aiConversation = { taskId: null, systemPrompt: '', messages: [], initialUserMessage: '' };
 
 async function runAiTask(taskId, mode = 'complete') {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
-
-  const apiKey = localStorage.getItem('apiKey') || null;
 
   currentAiTaskId = taskId;
 
@@ -2083,97 +2083,142 @@ async function runAiTask(taskId, mode = 'complete') {
   }
 
   document.getElementById('aiModalTask').textContent = task.cleaned_task || task.content;
-  document.getElementById('aiModalResult').innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;color:var(--text2);font-size:13px;padding:8px 0;">
-      <div style="display:flex;gap:4px;">
-        <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s infinite;"></div>
-        <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s 0.2s infinite;"></div>
-        <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s 0.4s infinite;"></div>
-      </div>
-      Claude is thinking…
-    </div>`;
   document.getElementById('tweakInput').value = '';
   document.getElementById('aiModal').style.display = 'flex';
 
-  // Build context from hat knowledge
   const hatKnowledge = knowledgeBase[task.project] || '';
   const projectCtx = hatKnowledge ? `\nProject context: ${hatKnowledge}` : '';
 
-  if (mode === 'complete') {
-    aiTaskContext = `You are STWRD, the user's personal AI chief of staff.${projectCtx}
+  const systemPrompt = mode === 'complete'
+    ? `You are STWRD, the user's personal AI chief of staff.${projectCtx}
 
-Complete this task fully — produce the ready-to-use deliverable. Don't explain, just deliver.
+Complete the user's task fully — produce the ready-to-use deliverable, not an explanation of one.
 
-Task: ${task.cleaned_task || task.content}${task.notes ? `\nNotes: ${task.notes}` : ''}`;
-  } else {
-    aiTaskContext = `You are STWRD, the user's personal AI chief of staff.${projectCtx}
+If critical information is missing that would meaningfully change the output (e.g. recipient name, specific date, key constraint), ask at most one focused clarifying question and wait. Otherwise, ship the deliverable now — don't invent blockers to avoid acting.
 
-This task needs human action, but you can help prep it. Give the user:
+On follow-up turns, the user may either answer your question or refine the output. Incorporate their input and produce the updated deliverable.`
+    : `You are STWRD, the user's personal AI chief of staff.${projectCtx}
+
+This task needs the user's hands on it, but you can prep it so they can move fast. Give them:
 1. A clear starting point (draft, outline, talking points, or key questions to answer)
 2. One specific recommended next step
 
-Task: ${task.cleaned_task || task.content}${task.notes ? `\nNotes: ${task.notes}` : ''}`;
-  }
+If critical information is missing that would meaningfully change the prep (e.g. audience, desired length, key constraint), ask at most one focused clarifying question and wait. Otherwise, deliver the prep now — don't invent blockers to avoid acting.
 
-  await callAiAndDisplay(aiTaskContext);
+On follow-up turns, the user may either answer your question or refine the output. Incorporate their input and produce the updated prep.`;
+
+  const initialUserMessage = `Task: ${task.cleaned_task || task.content}${task.notes ? `\nNotes: ${task.notes}` : ''}`;
+
+  aiConversation = { taskId, systemPrompt, messages: [], initialUserMessage };
+
+  await sendAiTurn(initialUserMessage);
 }
 
-async function callAiAndDisplay(prompt) {
-  const apiKey = localStorage.getItem('apiKey');
+async function sendAiTurn(userContent) {
   const resultEl = document.getElementById('aiModalResult');
-  resultEl.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:8px;padding:8px 0;">
-      <div style="display:flex;align-items:center;gap:10px;color:var(--text2);font-size:13px;">
+  const apiKey = localStorage.getItem('apiKey');
+  const provider = currentUserProfile?.preferred_ai || selectedAI || 'claude';
+  const isFollowUp = aiConversation.messages.length > 0;
+
+  // Show prior exchange + spinner immediately so the user sees their input reflected
+  renderConversation({ pendingUserInput: isFollowUp ? userContent : null, loading: true });
+
+  const messagesToSend = [
+    ...aiConversation.messages,
+    { role: 'user', content: userContent },
+  ];
+
+  try {
+    const response = await fetch('/api/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt: aiConversation.systemPrompt,
+        messages: messagesToSend,
+        apiKey,
+        maxTokens: 1200,
+        provider,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || 'API error');
+    const assistantText = data.content[0].text;
+    // Commit both turns on success (keeps state consistent if the call fails)
+    aiConversation.messages.push(
+      { role: 'user', content: userContent },
+      { role: 'assistant', content: assistantText },
+    );
+    renderConversation();
+  } catch (e) {
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function submitAiTurn() {
+  const input = document.getElementById('tweakInput').value.trim();
+  if (!input) { showToast('⚠️ Type a message'); return; }
+  document.getElementById('tweakInput').value = '';
+  await sendAiTurn(input);
+}
+
+async function resetAiConversation() {
+  if (!aiConversation.initialUserMessage) return;
+  aiConversation.messages = [];
+  document.getElementById('tweakInput').value = '';
+  await sendAiTurn(aiConversation.initialUserMessage);
+}
+
+function renderConversation({ pendingUserInput = null, loading = false } = {}) {
+  const resultEl = document.getElementById('aiModalResult');
+  const msgs = aiConversation.messages;
+  const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant');
+  // Prior user turns excluding the initial "Task: …" framing (index 0)
+  const followUpUserTurns = msgs.filter((m, i) => m.role === 'user' && i > 0);
+  const lastFollowUpUser = followUpUserTurns[followUpUserTurns.length - 1];
+  const userToShow = pendingUserInput || (lastFollowUpUser && lastFollowUpUser.content);
+
+  const parts = [];
+
+  if (userToShow) {
+    parts.push(`<div style="font-size:12px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-left:2px solid var(--accent);border-radius:6px;margin-bottom:12px;"><span style="font-weight:700;opacity:0.7;">You: </span>${escapeHtml(userToShow)}</div>`);
+  }
+
+  if (loading) {
+    parts.push(`
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text2);font-size:13px;padding:8px 0;">
         <div style="display:flex;gap:4px;">
           <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s infinite;"></div>
           <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s 0.2s infinite;"></div>
           <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s 0.4s infinite;"></div>
         </div>
         Claude is thinking…
-      </div>
-    </div>`;
-
-  try {
-    const response = await fetch('/api/process', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, apiKey, maxTokens: 1200, provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude') })
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message);
-    const text = data.content[0].text;
-    // Clean markdown rendering
-    resultEl.innerHTML = text
-      .replace(/^### (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 4px;">$1</div>')
-      .replace(/^## (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:15px;margin:12px 0 6px;">$1</div>')
-      .replace(/^# (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:17px;margin:12px 0 6px;">$1</div>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em style="color:var(--text2);">$1</em>')
-      .replace(/^[-•]\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:1px 0;"><span style="color:var(--accent);flex-shrink:0;">·</span><span>$1</span></div>')
-      .replace(/^(\d+)\.\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:1px 0;"><span style="color:var(--accent);flex-shrink:0;min-width:16px;">$1.</span><span>$2</span></div>')
-      .replace(/\n\n/g, '<div style="height:8px;"></div>')
-      .replace(/\n/g, '<br>');
-  } catch(e) {
-    resultEl.textContent = 'Error: ' + e.message;
+      </div>`);
+  } else if (lastAssistant) {
+    parts.push(renderAiMarkdown(lastAssistant.content));
   }
+
+  if (!loading && msgs.length >= CONVERSATION_SOFT_LIMIT) {
+    parts.push(`<div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border:1px dashed var(--border);border-radius:10px;font-size:12px;color:var(--text2);display:flex;align-items:center;justify-content:space-between;gap:10px;"><span>Long conversation — responses may slow down.</span><button onclick="resetAiConversation()" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:6px 10px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">Start fresh</button></div>`);
+  }
+
+  resultEl.innerHTML = parts.join('');
 }
 
-async function tweakAiResult() {
-  const instruction = document.getElementById('tweakInput').value.trim();
-  if (!instruction) { showToast('⚠️ Tell Claude how to change it'); return; }
+function renderAiMarkdown(text) {
+  return text
+    .replace(/^### (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 4px;">$1</div>')
+    .replace(/^## (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:15px;margin:12px 0 6px;">$1</div>')
+    .replace(/^# (.+)$/gm, '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:17px;margin:12px 0 6px;">$1</div>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em style="color:var(--text2);">$1</em>')
+    .replace(/^[-•]\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:1px 0;"><span style="color:var(--accent);flex-shrink:0;">·</span><span>$1</span></div>')
+    .replace(/^(\d+)\.\s(.+)$/gm, '<div style="display:flex;gap:6px;margin:1px 0;"><span style="color:var(--accent);flex-shrink:0;min-width:16px;">$1.</span><span>$2</span></div>')
+    .replace(/\n\n/g, '<div style="height:8px;"></div>')
+    .replace(/\n/g, '<br>');
+}
 
-  const currentResult = document.getElementById('aiModalResult').innerText || document.getElementById('aiModalResult').textContent;
-  const tweakPrompt = `${aiTaskContext}
-
-Here is what you produced:
-${currentResult}
-
-User instruction: ${instruction}
-
-Apply this instruction and produce the revised version only. No explanation.`;
-
-  document.getElementById('tweakInput').value = '';
-  await callAiAndDisplay(tweakPrompt);
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function copyAiResult() {
@@ -2202,7 +2247,7 @@ async function closeAiModal(markDone = false) {
     showToast('✓ Task completed');
   }
   currentAiTaskId = null;
-  aiTaskContext = '';
+  aiConversation = { taskId: null, systemPrompt: '', messages: [], initialUserMessage: '' };
 }
 
 // ─── TASK ACTIONS ─────────────────────────────────────────────
