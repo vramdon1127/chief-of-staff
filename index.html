@@ -2094,6 +2094,8 @@ async function runAiTask(taskId, mode = 'complete') {
 
 Complete the user's task fully — produce the ready-to-use deliverable, not an explanation of one.
 
+STWRD can only work with text the user provides in replies — you cannot read files, attachments, other apps, or the web. If a task references content you can't see (a document, email, spreadsheet, link, receipt), ask the user to paste or describe the relevant parts.
+
 If critical information is missing that would meaningfully change the output (e.g. recipient name, specific date, key constraint), ask at most one focused clarifying question and wait. Otherwise, ship the deliverable now — don't invent blockers to avoid acting.
 
 On follow-up turns, the user may either answer your question or refine the output. Incorporate their input and produce the updated deliverable.`
@@ -2102,6 +2104,8 @@ On follow-up turns, the user may either answer your question or refine the outpu
 This task needs the user's hands on it, but you can prep it so they can move fast. Give them:
 1. A clear starting point (draft, outline, talking points, or key questions to answer)
 2. One specific recommended next step
+
+STWRD can only work with text the user provides in replies — you cannot read files, attachments, other apps, or the web. If a task references content you can't see (a document, email, spreadsheet, link, receipt), ask the user to paste or describe the relevant parts.
 
 If critical information is missing that would meaningfully change the prep (e.g. audience, desired length, key constraint), ask at most one focused clarifying question and wait. Otherwise, deliver the prep now — don't invent blockers to avoid acting.
 
