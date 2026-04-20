@@ -1437,6 +1437,24 @@
   </div>
 </div>
 
+<!-- CLEAR ALL CONFIRMATION MODAL -->
+<div class="modal-overlay" id="clearAllModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--p1);">🗑️ Clear all tasks?</div>
+    <div class="modal-sub" id="clearAllSub">This will permanently delete every task in your account. This cannot be undone.</div>
+
+    <div style="background:var(--surface2);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--text);margin-bottom:10px;">Type <strong style="color:var(--p1);font-family:'Syne',sans-serif;letter-spacing:1px;">CLEAR</strong> to confirm:</div>
+      <input id="clearAllInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CLEAR" oninput="validateClearAllInput()" onkeydown="if(event.key==='Enter' && !document.getElementById('clearAllConfirmBtn').disabled) confirmClearAll()" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;letter-spacing:1px;outline:none;">
+    </div>
+
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeClearAllModal()">Cancel</button>
+      <button class="modal-btn" id="clearAllConfirmBtn" onclick="confirmClearAll()" disabled style="background:var(--surface2);color:var(--text2);opacity:0.5;cursor:not-allowed;">Delete all tasks</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────
 const SUPABASE_URL = 'https://fnnegalrrdzcgoelljmi.supabase.co';
@@ -3889,13 +3907,65 @@ async function clearDone() {
   showToast('Completed tasks cleared');
 }
 
-async function clearAll() {
-  if (!confirm('Delete ALL tasks? This cannot be undone.')) return;
-  await sbFetch(`tasks?user_id=eq.${currentUserId}`, 'DELETE');
-  tasks = [];
-  renderTasks();
-  renderStats();
-  showToast('All tasks cleared');
+function clearAll() {
+  openClearAllModal();
+}
+
+function openClearAllModal() {
+  const input = document.getElementById('clearAllInput');
+  if (input) input.value = '';
+  setClearAllConfirmEnabled(false);
+  const sub = document.getElementById('clearAllSub');
+  if (sub) {
+    const n = tasks.length;
+    sub.textContent = n > 0
+      ? `This will permanently delete all ${n} task${n !== 1 ? 's' : ''} in your account. This cannot be undone.`
+      : 'This will permanently delete every task in your account. This cannot be undone.';
+  }
+  document.getElementById('clearAllModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('clearAllInput')?.focus(), 100);
+}
+
+function closeClearAllModal() {
+  document.getElementById('clearAllModal').style.display = 'none';
+}
+
+function setClearAllConfirmEnabled(enabled) {
+  const btn = document.getElementById('clearAllConfirmBtn');
+  if (!btn) return;
+  btn.disabled = !enabled;
+  if (enabled) {
+    btn.style.background = 'var(--p1)';
+    btn.style.color = 'white';
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.style.background = 'var(--surface2)';
+    btn.style.color = 'var(--text2)';
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
+function validateClearAllInput() {
+  const input = document.getElementById('clearAllInput');
+  // Strict uppercase compare — no trim, no case-fold. That's the gate.
+  setClearAllConfirmEnabled(input?.value === 'CLEAR');
+}
+
+async function confirmClearAll() {
+  const input = document.getElementById('clearAllInput');
+  if (input?.value !== 'CLEAR') return; // defense in depth
+  try {
+    await sbFetch(`tasks?user_id=eq.${currentUserId}`, 'DELETE');
+    tasks = [];
+    renderTasks();
+    renderStats();
+    closeClearAllModal();
+    showToast('All tasks cleared');
+  } catch(e) {
+    showToast('❌ Could not clear: ' + (e.message || 'unknown error'));
+  }
 }
 
 function showToast(msg) {
