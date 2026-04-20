@@ -2705,6 +2705,122 @@ function sectionHeaderHTML(section) {
   return `<div class="task-section-header">${section.label}<span class="count">· ${section.count}</span></div>`;
 }
 
+// Shared task-card markup. Every task-list renderer (hat view, Today, stat
+// drilldowns, life-area drilldown) delegates here so a single task looks
+// identical everywhere — priority inset, overdue tint, humanized dates.
+// Mode-specific variations (selection, partner view, which actions to show,
+// whether to render the project tag) are driven by opts.
+function renderTaskCard(task, opts = {}) {
+  const {
+    mode = 'hat',            // 'hat' | 'today' | 'drilldown' | 'life'
+    selectionMode = false,   // hat mode only
+    isSelected = false,      // hat mode only
+    partnerView = false,     // hat mode only
+  } = opts;
+
+  const isDone = task.status === 'done';
+  const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g, '-')}`;
+  const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
+  const priCard = priCardClass(task);
+  const checkChecked = selectionMode ? isSelected : isDone;
+
+  // Outer classes.
+  const classes = ['task-card'];
+  if (isDone && mode === 'life') classes.push('done');
+  if (priCard) classes.push(priCard);
+  if (mode === 'hat' && selectionMode) classes.push('selection-mode');
+  if (mode === 'hat' && isSelected) classes.push('selected');
+
+  // Long-press + card-level click only exist in hat mode (bulk selection).
+  const hatTouchAttrs = (mode === 'hat')
+    ? ` ontouchstart="lpStart(event, '${task.id}')" ontouchmove="lpMove(event)" ontouchend="lpEnd()" ontouchcancel="lpEnd()"`
+      + ` onmousedown="lpStart(event, '${task.id}')" onmousemove="lpMove(event)" onmouseup="lpEnd()" onmouseleave="lpEnd()"`
+      + ` onclick="taskCardClick(event, '${task.id}')"`
+    : '';
+
+  // Check click handler — hat handles selection + stopPropagation via
+  // taskCheckClick; drilldown re-renders stats; today + life just toggle.
+  const checkClick = (mode === 'hat')
+    ? `taskCheckClick(event, '${task.id}')`
+    : (mode === 'drilldown')
+      ? `toggleDone('${task.id}');renderDrilldownAfterToggle('${task.id}')`
+      : `toggleDone('${task.id}')`;
+
+  // Project tag — shown on views that aggregate across projects.
+  const showProjectTag = mode === 'drilldown' || mode === 'life' || mode === 'today';
+  const projHex = projectColor(task.project);
+  const projectTagHtml = (showProjectTag && task.project)
+    ? `<span class="tag" style="background:${projHex}22;color:${projHex};">${task.project}</span>`
+    : '';
+
+  // Added-by tag — shown where the viewer is in their own scope.
+  const showAddedBy = mode === 'hat' || mode === 'today';
+  const addedByHtml = (showAddedBy && task.added_by)
+    ? `<span class="tag tag-added-by">${task.added_by}</span>`
+    : '';
+
+  const recurHtml = (task.recurrence && task.recurrence !== 'none')
+    ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>`
+    : '';
+
+  // Action row — existing per-mode variation preserved exactly.
+  let actionsHtml = '';
+  if (mode === 'hat' && selectionMode) {
+    // no actions during selection
+  } else if ((mode === 'hat' || mode === 'today') && partnerView) {
+    actionsHtml = `<div class="task-actions"><span style="font-size:11px;color:var(--text2);padding:4px 0;">👆 Tap check to help out</span></div>`;
+  } else if (mode === 'life' && isDone) {
+    // done life tasks are information-only
+  } else if (mode === 'drilldown') {
+    actionsHtml = `<div class="task-actions">
+      <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
+      <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
+    </div>`;
+  } else {
+    const aiComplete = task.category === 'AI Complete'
+      ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','complete')">🤖 Run with AI</button>`
+      : '';
+    const aiAssist = task.category === 'AI Assist'
+      ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','assist')" style="background:rgba(56,189,248,0.15);color:var(--ai-assist);border-color:rgba(56,189,248,0.3);">🤝 Get AI Help</button>`
+      : '';
+    const edit = `<button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>`;
+    // Life view omits Delete per existing behavior.
+    const del = (mode === 'life') ? '' : `<button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>`;
+    actionsHtml = `<div class="task-actions">${aiComplete}${aiAssist}${edit}${del}</div>`;
+  }
+
+  // Notes — hat and today only, matching pre-refactor behavior.
+  const showNotes = mode === 'hat' || mode === 'today';
+  const notesHtml = (showNotes && task.notes)
+    ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.5;border-left:2px solid var(--accent);">📝 ${task.notes}</div>`
+    : '';
+
+  const checkSvg = checkChecked
+    ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '';
+
+  const dataAttrs = (mode === 'hat') ? ` data-task-id="${task.id}"` : '';
+
+  return `<div class="${classes.join(' ')}" id="task-${task.id}"${dataAttrs}${hatTouchAttrs}>
+      <div class="task-card-top">
+        <div class="task-check ${checkChecked ? 'checked' : ''}" onclick="${checkClick}">${checkSvg}</div>
+        <div class="task-body">
+          <div class="task-title">${task.cleaned_task || task.content}</div>
+          <div class="task-meta">
+            ${projectTagHtml}
+            ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
+            ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
+            ${addedByHtml}
+            ${dueBadgeHTML(task)}
+            ${recurHtml}
+          </div>
+          ${actionsHtml}
+          ${notesHtml}
+        </div>
+      </div>
+    </div>`;
+}
+
 let currentHat = null;
 let currentHatFilter = 'all';
 let selectionMode = false;
@@ -2724,6 +2840,9 @@ function populateHatSelectors() {
 
 function renderTasks() {
   renderHatBuckets();
+  // Keep Today view synced — it reads from the same tasks array, and checking
+  // a task from the Today card flows through toggleDone → renderTasks.
+  renderToday();
 }
 
 function renderHatBuckets() {
@@ -2829,43 +2948,12 @@ function renderHatTasks() {
     return;
   }
 
-  const renderCard = (task) => {
-    const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
-    const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
-    const priCard = priCardClass(task);
-    const isSelected = selectionMode && selectedTaskIds.has(task.id);
-    const checkChecked = selectionMode ? isSelected : task.status === 'done';
-    return `
-    <div class="task-card${priCard ? ' ' + priCard : ''}${selectionMode ? ' selection-mode' : ''}${isSelected ? ' selected' : ''}" id="task-${task.id}" data-task-id="${task.id}"
-      ontouchstart="lpStart(event, '${task.id}')" ontouchmove="lpMove(event)" ontouchend="lpEnd()" ontouchcancel="lpEnd()"
-      onmousedown="lpStart(event, '${task.id}')" onmousemove="lpMove(event)" onmouseup="lpEnd()" onmouseleave="lpEnd()"
-      onclick="taskCardClick(event, '${task.id}')">
-      <div class="task-card-top">
-        <div class="task-check ${checkChecked ? 'checked' : ''}" onclick="taskCheckClick(event, '${task.id}')">
-          ${checkChecked ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-        </div>
-        <div class="task-body">
-          <div class="task-title">${task.cleaned_task || task.content}</div>
-          <div class="task-meta">
-            ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
-            ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
-            ${task.added_by ? `<span class="tag tag-added-by">${task.added_by}</span>` : ''}
-            ${dueBadgeHTML(task)}
-            ${task.recurrence && task.recurrence !== 'none' ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>` : ''}
-          </div>
-          ${selectionMode ? '' : `<div class="task-actions">
-            ${viewingPartner ? `<span style="font-size:11px;color:var(--text2);padding:4px 0;">👆 Tap check to help out</span>` : `
-            ${task.category === 'AI Complete' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','complete')">🤖 Run with AI</button>` : ''}
-            ${task.category === 'AI Assist' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','assist')" style="background:rgba(56,189,248,0.15);color:var(--ai-assist);border-color:rgba(56,189,248,0.3);">🤝 Get AI Help</button>` : ''}
-            <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
-            <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
-            `}
-          </div>`}
-          ${task.notes ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.5;border-left:2px solid var(--accent);">📝 ${task.notes}</div>` : ''}
-        </div>
-      </div>
-    </div>`;
-  };
+  const renderCard = (task) => renderTaskCard(task, {
+    mode: 'hat',
+    selectionMode,
+    isSelected: selectionMode && selectedTaskIds.has(task.id),
+    partnerView: viewingPartner,
+  });
 
   list.innerHTML = groupTasksBySections(filtered)
     .map(sec => sectionHeaderHTML(sec) + sec.tasks.map(renderCard).join(''))
@@ -3588,14 +3676,16 @@ function renderToday() {
       <div style="color:var(--text2);font-size:14px;">${dateStr}</div>
     </div>`;
 
+  const renderCard = (t) => renderTaskCard(t, { mode: 'today', partnerView: viewingPartner });
+
   if (overdue.length > 0) {
     html += `<div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--p1);margin-bottom:10px;">⚠️ Overdue (${overdue.length})</div>`;
-    html += overdue.map(t => renderTodayCard(t, 'overdue')).join('');
+    html += overdue.map(renderCard).join('');
   }
 
   if (todayTasks.length > 0) {
     html += `<div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin:16px 0 10px;">Due Today (${todayTasks.length})</div>`;
-    html += todayTasks.map(t => renderTodayCard(t, 'today')).join('');
+    html += todayTasks.map(renderCard).join('');
   } else {
     html += `<div class="empty-state" style="padding:32px 0;">
       <div class="empty-state-icon">🎉</div>
@@ -3606,41 +3696,10 @@ function renderToday() {
 
   if (upcoming.length > 0) {
     html += `<div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin:16px 0 10px;">Coming Up</div>`;
-    html += upcoming.map(t => renderTodayCard(t, 'upcoming')).join('');
+    html += upcoming.map(renderCard).join('');
   }
 
   document.getElementById('todayContent').innerHTML = html;
-}
-
-function renderTodayCard(task, type) {
-  const borderColor = type === 'overdue' ? 'var(--p1)' : type === 'today' ? 'var(--p1)' : 'var(--border)';
-  const accentColor = type === 'overdue' ? 'var(--p1)' : type === 'today' ? 'var(--p1)' : type === 'upcoming' ? 'var(--p2)' : 'var(--border)';
-  const dueLabel = type === 'overdue' ? `Due ${task.due_date}` : type === 'upcoming' ? `Due ${task.due_date}` : 'Due Today';
-  
-  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;">
-    <div style="width:3px;height:40px;background:${accentColor};border-radius:2px;flex-shrink:0;"></div>
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:14px;font-weight:500;margin-bottom:4px;">${task.cleaned_task || task.content}</div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <span style="font-size:11px;color:var(--text2);font-weight:500;">${task.project}</span>
-        <span style="font-size:11px;color:var(--text2);">·</span>
-        <span style="font-size:11px;color:${type === 'overdue' ? 'var(--p1)' : 'var(--text2)'};">${dueLabel}</span>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;">
-      <button onclick="openEditModal('${task.id}')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;">Edit</button>
-      <button onclick="quickComplete('${task.id}')" style="padding:6px 10px;border-radius:8px;border:none;background:var(--done);color:#0a0a0f;font-size:11px;font-weight:700;cursor:pointer;">Done</button>
-    </div>
-  </div>`;
-}
-
-async function quickComplete(taskId) {
-  await updateTask(taskId, { status: 'done', completed_at: new Date().toISOString() });
-  tasks = tasks.filter(t => t.id !== taskId);
-  renderToday();
-  renderTasks();
-  renderStats();
-  showToast('✓ Task completed!');
 }
 
 // ─── DRILL DOWN VIEW ──────────────────────────────────────────
@@ -3677,35 +3736,7 @@ function showLifeDrilldown(idx) {
     list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✨</div><div class="empty-state-title">No ${cat.name} tasks this week</div></div>`;
     return;
   }
-  const renderCard = (task) => {
-    const isDone = task.status === 'done';
-    const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
-    const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
-    const priCard = priCardClass(task);
-    const projColor = projectColor(task.project);
-    return `<div class="task-card ${isDone ? 'done' : ''}${priCard ? ' ' + priCard : ''}" id="task-${task.id}">
-      <div class="task-card-top">
-        <div class="task-check ${isDone ? 'checked' : ''}" onclick="toggleDone('${task.id}')">
-          ${isDone ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-        </div>
-        <div class="task-body">
-          <div class="task-title">${task.cleaned_task || task.content}</div>
-          <div class="task-meta">
-            ${task.project ? `<span class="tag" style="background:${projColor}22;color:${projColor};">${task.project}</span>` : ''}
-            ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
-            ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
-            ${dueBadgeHTML(task)}
-            ${task.recurrence && task.recurrence !== 'none' ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>` : ''}
-          </div>
-          ${!isDone ? `<div class="task-actions">
-            ${task.category === 'AI Complete' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','complete')">🤖 Run with AI</button>` : ''}
-            ${task.category === 'AI Assist' ? `<button class="task-action-btn ai-run" onclick="runAiTask('${task.id}','assist')" style="background:rgba(56,189,248,0.15);color:var(--ai-assist);border-color:rgba(56,189,248,0.3);">🤝 Get AI Help</button>` : ''}
-            <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
-          </div>` : ''}
-        </div>
-      </div>
-    </div>`;
-  };
+  const renderCard = (task) => renderTaskCard(task, { mode: 'life' });
   list.innerHTML = groupTasksBySections(filtered)
     .map(sec => sectionHeaderHTML(sec) + sec.tasks.map(renderCard).join(''))
     .join('');
@@ -3726,34 +3757,7 @@ function showDrilldown(title, filterFn) {
     return;
   }
 
-  const renderCard = (task) => {
-    const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
-    const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
-    const priCard = priCardClass(task);
-    const projColor = projectColor(task.project);
-    return `
-    <div class="task-card${priCard ? ' ' + priCard : ''}">
-      <div class="task-card-top">
-        <div class="task-check ${task.status === 'done' ? 'checked' : ''}" onclick="toggleDone('${task.id}');renderDrilldownAfterToggle('${task.id}')">
-          ${task.status === 'done' ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-        </div>
-        <div class="task-body">
-          <div class="task-title">${task.cleaned_task || task.content}</div>
-          <div class="task-meta">
-            ${task.project ? `<span class="tag" style="background:${projColor}22;color:${projColor};">${task.project}</span>` : ''}
-            ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
-            ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
-            ${dueBadgeHTML(task)}
-            ${task.recurrence && task.recurrence !== 'none' ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>` : ''}
-          </div>
-          <div class="task-actions">
-            <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
-            <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  };
+  const renderCard = (task) => renderTaskCard(task, { mode: 'drilldown' });
   list.innerHTML = groupTasksBySections(filtered)
     .map(sec => sectionHeaderHTML(sec) + sec.tasks.map(renderCard).join(''))
     .join('');
