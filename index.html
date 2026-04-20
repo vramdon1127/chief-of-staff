@@ -2529,7 +2529,8 @@ function hatColor(name) {
 }
 
 // Priority sort: completed sink to bottom, then P1→P4, then null/unknown.
-// Within a tier, preserve input order (Array.prototype.sort is stable).
+// Secondary: due_date ASC with NULLS LAST.
+// Tertiary: stable sort preserves input order (created_at DESC from fetch).
 const PRIORITY_RANK = { P1: 1, P2: 2, P3: 3, P4: 4 };
 function priorityRank(task) {
   return PRIORITY_RANK[task.priority] || 99;
@@ -2539,7 +2540,14 @@ function sortByPriority(list) {
     const aDone = a.status === 'done' ? 1 : 0;
     const bDone = b.status === 'done' ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
-    return priorityRank(a) - priorityRank(b);
+    const pr = priorityRank(a) - priorityRank(b);
+    if (pr !== 0) return pr;
+    const aDue = a.due_date || null;
+    const bDue = b.due_date || null;
+    if (aDue === bDue) return 0;
+    if (!aDue) return 1;
+    if (!bDue) return -1;
+    return aDue < bDue ? -1 : 1;
   });
 }
 // Card-level class for priority visual treatment (applied alongside .task-card).
@@ -2548,6 +2556,23 @@ function priCardClass(task) {
   if (task.priority === 'P1') return 'pri-p1';
   if (task.priority === 'P2') return 'pri-p2';
   return '';
+}
+// Today's date in Chicago TZ (YYYY-MM-DD), matching renderToday's convention.
+function todayStr() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
+function isOverdue(task) {
+  if (!task.due_date || task.status === 'done') return false;
+  return task.due_date < todayStr();
+}
+// Date chip HTML — red tint + red text when overdue, accent purple otherwise.
+function dueBadgeHTML(task) {
+  if (!task.due_date) return '';
+  const mmddyy = task.due_date.split('-').slice(1).concat(task.due_date.split('-')[0]).join('/');
+  if (isOverdue(task)) {
+    return `<span class="tag" style="background:rgba(239,68,68,0.15);color:var(--p1);font-weight:700;">⚠️ ${mmddyy}</span>`;
+  }
+  return `<span class="tag" style="background:rgba(108,99,255,0.1);color:var(--accent);">📅 ${mmddyy}</span>`;
 }
 
 let currentHat = null;
@@ -2696,7 +2721,7 @@ function renderHatTasks() {
             ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
             ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
             ${task.added_by ? `<span class="tag tag-added-by">${task.added_by}</span>` : ''}
-            ${task.due_date ? `<span class="tag" style="background:rgba(108,99,255,0.1);color:var(--accent);">📅 ${task.due_date.split('-').slice(1).concat(task.due_date.split('-')[0]).join('/')}</span>` : ''}
+            ${dueBadgeHTML(task)}
             ${task.recurrence && task.recurrence !== 'none' ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>` : ''}
           </div>
           ${selectionMode ? '' : `<div class="task-actions">
@@ -3539,7 +3564,7 @@ function showLifeDrilldown(idx) {
             ${task.project ? `<span class="tag" style="background:${projColor}22;color:${projColor};">${task.project}</span>` : ''}
             ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
             ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
-            ${task.due_date ? `<span class="tag" style="background:rgba(108,99,255,0.1);color:var(--accent);">📅 ${task.due_date.split('-').slice(1).concat(task.due_date.split('-')[0]).join('/')}</span>` : ''}
+            ${dueBadgeHTML(task)}
             ${task.recurrence && task.recurrence !== 'none' ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>` : ''}
           </div>
           ${!isDone ? `<div class="task-actions">
@@ -3586,7 +3611,7 @@ function showDrilldown(title, filterFn) {
             ${task.project ? `<span class="tag" style="background:${projColor}22;color:${projColor};">${task.project}</span>` : ''}
             ${task.category ? `<span class="tag ${catClass}">${task.category}</span>` : ''}
             ${task.priority ? `<span class="tag ${priClass}">${task.priority}</span>` : ''}
-            ${task.due_date ? `<span class="tag" style="background:rgba(108,99,255,0.1);color:var(--accent);">📅 ${task.due_date.split('-').slice(1).concat(task.due_date.split('-')[0]).join('/')}</span>` : ''}
+            ${dueBadgeHTML(task)}
             ${task.recurrence && task.recurrence !== 'none' ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>` : ''}
           </div>
           <div class="task-actions">
