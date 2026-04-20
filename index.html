@@ -441,6 +441,21 @@
   .tag-p3 { background: rgba(167,139,250,0.15); color: var(--p3); }
   .tag-p4 { background: rgba(107,114,128,0.15); color: var(--p4); }
 
+  /* PRIORITY CARD TREATMENT — scannable without reading label.
+     Uses inset box-shadow so there's no layout shift vs default card. */
+  .task-card.pri-p1 {
+    box-shadow: inset 4px 0 0 var(--p1);
+    background: linear-gradient(90deg, rgba(239,68,68,0.06) 0%, var(--surface) 40%);
+  }
+  .task-card.pri-p2 {
+    box-shadow: inset 3px 0 0 var(--p2);
+  }
+  .task-card.pri-p1.done,
+  .task-card.pri-p2.done {
+    box-shadow: none;
+    background: var(--surface);
+  }
+
   .tag-added-by {
     background: var(--surface2);
     color: var(--text2);
@@ -2513,6 +2528,28 @@ function hatColor(name) {
   return map[name] || 'var(--accent)';
 }
 
+// Priority sort: completed sink to bottom, then P1→P4, then null/unknown.
+// Within a tier, preserve input order (Array.prototype.sort is stable).
+const PRIORITY_RANK = { P1: 1, P2: 2, P3: 3, P4: 4 };
+function priorityRank(task) {
+  return PRIORITY_RANK[task.priority] || 99;
+}
+function sortByPriority(list) {
+  return [...list].sort((a, b) => {
+    const aDone = a.status === 'done' ? 1 : 0;
+    const bDone = b.status === 'done' ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return priorityRank(a) - priorityRank(b);
+  });
+}
+// Card-level class for priority visual treatment (applied alongside .task-card).
+function priCardClass(task) {
+  if (task.status === 'done') return '';
+  if (task.priority === 'P1') return 'pri-p1';
+  if (task.priority === 'P2') return 'pri-p2';
+  return '';
+}
+
 let currentHat = null;
 let currentHatFilter = 'all';
 let selectionMode = false;
@@ -2626,6 +2663,7 @@ function renderHatTasks() {
   const list = document.getElementById('hatTaskList');
   let filtered = tasks.filter(t => t.project === currentHat);
   if (currentHatFilter !== 'all') filtered = filtered.filter(t => t.category === currentHatFilter);
+  filtered = sortByPriority(filtered);
 
   if (filtered.length === 0) {
     list.innerHTML = `
@@ -2640,10 +2678,11 @@ function renderHatTasks() {
   list.innerHTML = filtered.map(task => {
     const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
     const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
+    const priCard = priCardClass(task);
     const isSelected = selectionMode && selectedTaskIds.has(task.id);
     const checkChecked = selectionMode ? isSelected : task.status === 'done';
     return `
-    <div class="task-card${selectionMode ? ' selection-mode' : ''}${isSelected ? ' selected' : ''}" id="task-${task.id}" data-task-id="${task.id}"
+    <div class="task-card${priCard ? ' ' + priCard : ''}${selectionMode ? ' selection-mode' : ''}${isSelected ? ' selected' : ''}" id="task-${task.id}" data-task-id="${task.id}"
       ontouchstart="lpStart(event, '${task.id}')" ontouchmove="lpMove(event)" ontouchend="lpEnd()" ontouchcancel="lpEnd()"
       onmousedown="lpStart(event, '${task.id}')" onmousemove="lpMove(event)" onmouseup="lpEnd()" onmouseleave="lpEnd()"
       onclick="taskCardClick(event, '${task.id}')">
@@ -3379,9 +3418,9 @@ async function saveEdit() {
 // ─── TODAY VIEW ───────────────────────────────────────────────
 function renderToday() {
   const today = new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
-  const todayTasks = tasks.filter(t => t.due_date === today);
-  const overdue = tasks.filter(t => t.due_date && t.due_date < today);
-  const upcoming = tasks.filter(t => t.due_date && t.due_date > today).slice(0, 5);
+  const todayTasks = sortByPriority(tasks.filter(t => t.due_date === today));
+  const overdue = sortByPriority(tasks.filter(t => t.due_date && t.due_date < today));
+  const upcoming = sortByPriority(tasks.filter(t => t.due_date && t.due_date > today)).slice(0, 5);
 
   const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -3469,7 +3508,7 @@ function showLifeDrilldown(idx) {
     const text = ((t.cleaned_task || t.content || '') + ' ' + (t.project || '')).toLowerCase();
     return keywords.some(k => matchesKeyword(text, k));
   });
-  const sorted = [...filtered.filter(t => t.status !== 'done'), ...filtered.filter(t => t.status === 'done')];
+  const sorted = sortByPriority(filtered);
 
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -3487,8 +3526,9 @@ function showLifeDrilldown(idx) {
     const isDone = task.status === 'done';
     const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
     const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
+    const priCard = priCardClass(task);
     const projColor = projColors[task.project] || 'var(--accent)';
-    return `<div class="task-card ${isDone ? 'done' : ''}" id="task-${task.id}">
+    return `<div class="task-card ${isDone ? 'done' : ''}${priCard ? ' ' + priCard : ''}" id="task-${task.id}">
       <div class="task-card-top">
         <div class="task-check ${isDone ? 'checked' : ''}" onclick="toggleDone('${task.id}')">
           ${isDone ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
@@ -3520,7 +3560,7 @@ function showDrilldown(title, filterFn) {
   document.getElementById('nav-stats').classList.add('active');
   document.getElementById('drilldownTitle').textContent = title;
 
-  const filtered = tasks.filter(filterFn);
+  const filtered = sortByPriority(tasks.filter(filterFn));
   const list = document.getElementById('drilldownList');
 
   if (filtered.length === 0) {
@@ -3532,9 +3572,10 @@ function showDrilldown(title, filterFn) {
     const projColors = { GNE: 'var(--gne)', Caliber: 'var(--caliber)', Personal: 'var(--personal)', ServeAnts: 'var(--servents)' };
     const catClass = `tag-cat-${(task.category || '').toLowerCase().replace(/ /g,'-')}`;
     const priClass = `tag-${(task.priority || 'p3').toLowerCase()}`;
+    const priCard = priCardClass(task);
     const projColor = projColors[task.project] || 'var(--accent)';
     return `
-    <div class="task-card">
+    <div class="task-card${priCard ? ' ' + priCard : ''}">
       <div class="task-card-top">
         <div class="task-check ${task.status === 'done' ? 'checked' : ''}" onclick="toggleDone('${task.id}');renderDrilldownAfterToggle('${task.id}')">
           ${task.status === 'done' ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
