@@ -450,8 +450,15 @@
   .task-card.pri-p2 {
     box-shadow: inset 3px 0 0 var(--p2);
   }
+  /* OVERDUE — red inset + uniform tint. Declared after pri-p2 so it wins
+     on equal specificity when both classes are present. */
+  .task-card.is-overdue {
+    box-shadow: inset 4px 0 0 var(--p1);
+    background: linear-gradient(rgba(239,68,68,0.05), rgba(239,68,68,0.05)), var(--surface);
+  }
   .task-card.pri-p1.done,
-  .task-card.pri-p2.done {
+  .task-card.pri-p2.done,
+  .task-card.is-overdue.done {
     box-shadow: none;
     background: var(--surface);
   }
@@ -2540,6 +2547,10 @@ function sortByPriority(list) {
     const aDone = a.status === 'done' ? 1 : 0;
     const bDone = b.status === 'done' ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
+    // Overdue floats above all non-overdue regardless of priority.
+    const aOv = isOverdue(a) ? 0 : 1;
+    const bOv = isOverdue(b) ? 0 : 1;
+    if (aOv !== bOv) return aOv - bOv;
     const pr = priorityRank(a) - priorityRank(b);
     if (pr !== 0) return pr;
     const aDue = a.due_date || null;
@@ -2550,13 +2561,6 @@ function sortByPriority(list) {
     return aDue < bDue ? -1 : 1;
   });
 }
-// Card-level class for priority visual treatment (applied alongside .task-card).
-function priCardClass(task) {
-  if (task.status === 'done') return '';
-  if (task.priority === 'P1') return 'pri-p1';
-  if (task.priority === 'P2') return 'pri-p2';
-  return '';
-}
 // Today's date in Chicago TZ (YYYY-MM-DD), matching renderToday's convention.
 function todayStr() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -2564,6 +2568,15 @@ function todayStr() {
 function isOverdue(task) {
   if (!task.due_date || task.status === 'done') return false;
   return task.due_date < todayStr();
+}
+// Card-level class for priority + overdue visual treatment (applied alongside .task-card).
+function priCardClass(task) {
+  if (task.status === 'done') return '';
+  const classes = [];
+  if (task.priority === 'P1') classes.push('pri-p1');
+  else if (task.priority === 'P2') classes.push('pri-p2');
+  if (isOverdue(task)) classes.push('is-overdue');
+  return classes.join(' ');
 }
 // Day-of-week / date-math helpers (UTC-anchored to avoid browser-local TZ drift;
 // YYYY-MM-DD strings already encode a specific calendar day).
