@@ -22,6 +22,51 @@ async function sbFetch(path, useServiceRole = false) {
   return text ? JSON.parse(text) : null;
 }
 
+// Friendly first-name salutation from a profile row.
+// Falls back to email local-part, then "friend", so the digest never crashes
+// on a partial profile.
+function firstNameFrom(profile) {
+  const raw = profile?.full_name || profile?.digest_email || '';
+  const first = String(raw).trim().split(/\s+/)[0] || '';
+  // Strip the @domain tail if we fell back to the email.
+  return first.split('@')[0] || 'friend';
+}
+
+// Generic baseline used only when a user has no life_categories rows yet.
+// No user-specific tokens — a brand-new user still gets something scoreable.
+const DEFAULT_LIFE_CATEGORIES = [
+  { name: 'Work', icon: '💼', goal: 5 },
+  { name: 'Family', icon: '🏠', goal: 3 },
+  { name: 'Health', icon: '💪', goal: 3 },
+  { name: 'Faith', icon: '🙏', goal: 1 },
+  { name: 'Finance', icon: '💰', goal: 2 },
+  { name: 'Personal', icon: '✨', goal: 2 },
+  { name: 'Growth', icon: '🌱', goal: 1 },
+];
+
+// Build the keyword map the scoring loop operates over.
+// Always seeds each category with its own lowercased name so a user whose
+// life_categories rows have no `keywords` array still gets a baseline match;
+// stored keywords merge on top.
+function buildUserLifeCategories(rows) {
+  const source = (rows && rows.length > 0) ? rows : DEFAULT_LIFE_CATEGORIES;
+  return source.map(c => {
+    const name = c.name || '';
+    const nameLower = name.toLowerCase();
+    const stored = Array.isArray(c.keywords)
+      ? c.keywords.map(k => String(k).toLowerCase()).filter(Boolean)
+      : [];
+    const keywords = [...new Set([nameLower, ...stored])].filter(Boolean);
+    return {
+      name,
+      icon: c.icon || '⚖️',
+      keywords,
+      // Default goal so scoring math can't divide by zero.
+      goal: (typeof c.goal === 'number' && c.goal > 0) ? c.goal : 2,
+    };
+  });
+}
+
 export default async function handler(req, res) {
   // Allow manual trigger via POST (for testing), cron hits GET
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -38,7 +83,7 @@ export default async function handler(req, res) {
   try {
     // ── Pull all user profiles for digest sending ──────────────
     // For now send to all users who have digest_email set
-    const profiles = await sbFetch('profiles?digest_email=not.is.null&select=id,digest_email,anthropic_key', true);
+    const profiles = await sbFetch('profiles?digest_email=not.is.null&select=id,full_name,digest_email,anthropic_key', true);
     
     if (!profiles || profiles.length === 0) {
       return res.status(200).json({ message: 'No users with digest email configured' });
@@ -83,13 +128,16 @@ async function sendDigestToUser(profile, resendKey) {
       });
     }
 
+    // ── Identity ────────────────────────────────────────────────
+    const firstName = firstNameFrom(profile);
+
     // ── Pull active tasks ───────────────────────────────────────
     const userId = profile.id;
     const tasks = await sbFetch(`tasks?user_id=eq.${userId}&status=neq.done&order=created_at.desc&limit=100`, true) || [];
 
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-    const todayDisplay = new Date().toLocaleDateString('en-US', { 
-      weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Chicago' 
+    const todayDisplay = new Date().toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Chicago'
     });
 
     const dueTodayTasks = tasks.filter(t => t.due_date === today);
@@ -98,15 +146,14 @@ async function sendDigestToUser(profile, resendKey) {
     const aiCompleteTasks = tasks.filter(t => t.category === 'AI Complete');
 
     // ── Build life balance scores ───────────────────────────────
-    const lifeCategories = [
-      { name: 'Work', icon: '💼', keywords: ['invoice','client','meeting','email','caliber','gne','sox','audit','serveants','tax','honeybook','vibo','booking'], goal: 5 },
-      { name: 'Family', icon: '🏠', keywords: ['mia','baby','home','house','birthday','gift','party','nursery','paint','mattress','depot','crue','jada'], goal: 2 },
-      { name: 'Health', icon: '💪', keywords: ['workout','gym','exercise','run','walk','doctor','sleep','eat','diet','health','mental','meditat'], goal: 3 },
-      { name: 'Faith', icon: '🙏', keywords: ['church','pray','devotion','bible','worship','faith','sermon','ministry','god','spiritual'], goal: 1 },
-      { name: 'Finance', icon: '💰', keywords: ['invoice','payment','bill','budget','tax','money','zelle','deposit','proconnect','plaid'], goal: 2 },
-      { name: 'Growth', icon: '🌱', keywords: ['learn','read','course','study','book','research','build','app','skill','improve','practice'], goal: 1 },
-      { name: 'Recharge', icon: '🎮', keywords: ['game','video','play','rest','relax','netflix','movie','tv','break','vacation'], goal: 1 },
-    ];
+    // Categories come from the user's own life_categories rows (set during
+    // onboarding and editable in Settings). Falls back to a generic default
+    // set if the user has none yet.
+    const userCategoryRows = await sbFetch(
+      `life_categories?user_id=eq.${userId}&active=eq.true&order=sort_order.asc`,
+      true
+    ) || [];
+    const lifeCategories = buildUserLifeCategories(userCategoryRows);
 
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
@@ -143,7 +190,7 @@ async function sendDigestToUser(profile, resendKey) {
       `[${t.project}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
     ).join('\n');
 
-    const aiPrompt = `You are STWRD, Vijay Ramdon's personal AI life manager. Generate a sharp, specific morning briefing.
+    const aiPrompt = `You are STWRD, ${firstName}'s personal AI life manager. Generate a sharp, specific morning briefing.
 
 TODAY: ${todayDisplay}
 LIFE SCORE THIS WEEK: ${lifeScore}/100
