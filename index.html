@@ -5446,7 +5446,7 @@ function togglePartnerPanel() {
 async function loadPartner() {
   try {
     if (!currentUserId) {
-      showToast('🔍 loadPartner: no currentUserId yet');
+      console.log('[STWRD] loadPartner: no currentUserId yet');
       renderPartnerPanel(null);
       return;
     }
@@ -5454,8 +5454,7 @@ async function loadPartner() {
     if (!data || data.length === 0) {
       data = await sbFetch(`partnerships?invitee_id=eq.${currentUserId}&status=eq.active&limit=1`);
     }
-    showToast('🔍 loadPartner found ' + (data?.length || 0) + ' rows');
-    console.log('[STWRD] loadPartner result:', data, 'currentUserId:', currentUserId);
+    console.log('[STWRD] loadPartner found', data?.length || 0, 'rows; result:', data, 'currentUserId:', currentUserId);
     if (!data || data.length === 0) {
       renderPartnerPanel(null);
       return;
@@ -5465,10 +5464,9 @@ async function loadPartner() {
     const profileRows = await sbFetch(`profiles?id=eq.${partnerId}&select=id,full_name,digest_email`);
     const profile = Array.isArray(profileRows) ? profileRows[0] : profileRows;
     partnerData = { id: partnerId, name: profile?.full_name?.split(' ')[0] || 'Partner', profile, partnershipId: partnership.id };
-    showToast('✅ Partner loaded: ' + partnerData.name);
+    console.log('[STWRD] Partner loaded:', partnerData.name);
     renderPartnerPanel(partnerData);
   } catch(e) {
-    showToast('❌ loadPartner error: ' + e.message);
     console.error('[STWRD] loadPartner error:', e);
     renderPartnerPanel(null);
   }
