@@ -945,7 +945,7 @@
     <!-- Step 5: Life Balance -->
     <div id="ob-step-5" style="display:none;">
       <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px;">Your Life Areas ⚖️</div>
-      <div style="color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:16px;">These are the areas STWRD tracks to calculate your weekly Life Score. We've pre-selected the core ones — deselect any that don't apply to your life.</div>
+      <div style="color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:16px;">These are the areas STWRD sorts your tasks into. We've pre-selected the core ones — deselect any that don't apply to your life.</div>
 
       <!-- Core areas -->
       <div id="ob-metrics-list" style="margin-bottom:16px;"></div>
@@ -983,7 +983,7 @@
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;position:relative;overflow:hidden;">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Daily Digest Email 📬</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Your Life Score, today's tasks, and one AI focus — every morning at 6am CT.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Today's tasks and one AI focus — every morning at 6am CT.</div>
         <input id="ob-email" type="email" placeholder="you@email.com" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;">
       </div>
 
@@ -1221,20 +1221,6 @@
   </div>
 
 
-  <!-- PROGRESS VIEW -->
-  <div class="view" id="view-progress">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;">30-Day Journey</div>
-      <button onclick="resetJourney()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--p1)';this.style.color='var(--p1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">↺ Reset</button>
-    </div>
-    <div style="color:var(--text2);font-size:13px;margin-bottom:20px;">Tracking your stewardship over time</div>
-    <div id="progressContent">
-      <div style="text-align:center;padding:40px;color:var(--text2);">
-        <div style="font-size:32px;margin-bottom:12px;">📈</div>
-        <div style="font-family:'Syne',sans-serif;font-size:16px;color:var(--text);margin-bottom:6px;">Loading your journey...</div>
-      </div>
-    </div>
-  </div>
   <!-- SETTINGS VIEW -->
   <div class="view" id="view-settings">
 
@@ -1275,7 +1261,7 @@
     <div class="settings-section">
       <div class="settings-row" style="cursor:default;flex-direction:column;align-items:flex-start;">
         <div class="settings-label" style="font-weight:600;margin-bottom:4px;">⚖️ Life Areas</div>
-        <div class="settings-value" style="margin-bottom:12px;">Customize the areas that make up your Life Score. Add, rename, or remove areas to match your life.</div>
+        <div class="settings-value" style="margin-bottom:12px;">Customize the areas STWRD sorts your tasks into. Add, rename, or remove areas to match your life.</div>
         <div id="lifeAreasEditor" style="width:100%;margin-bottom:12px;"></div>
         <button onclick="addLifeArea()" style="width:100%;padding:11px;border-radius:10px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ Add Life Area</button>
       </div>
@@ -1283,7 +1269,7 @@
 
     <div class="settings-section">
       <div class="settings-row" style="cursor:default;flex-direction:column;align-items:flex-start;">
-        <div class="settings-label" style="font-weight:600;margin-bottom:4px;">🧠 Life Balance Keywords</div>
+        <div class="settings-label" style="font-weight:600;margin-bottom:4px;">🧠 Life Area Keywords</div>
         <div class="settings-value" style="margin-bottom:12px;">These keywords tell STWRD which life area each task belongs to. Your hat names are matched automatically. Edit to fine-tune.</div>
         <div id="keywordEditor" style="width:100%;margin-bottom:12px;"></div>
         <button onclick="refineLifeBalance()" id="refineBtn" style="width:100%;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -1334,10 +1320,6 @@
   <button class="nav-item" id="nav-stats" onclick="showView('stats')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
     Dashboard
-  </button>
-  <button class="nav-item" id="nav-progress" onclick="showView('progress')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    Journey
   </button>
   <button class="nav-item" id="nav-settings" onclick="showView('settings')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1692,7 +1674,6 @@ async function initApp(user) {
   const urlParams = new URLSearchParams(window.location.search);
   const inviteToken = urlParams.get('invite');
   if (inviteToken) acceptInvite(inviteToken);
-  setTimeout(saveWeeklySnapshot, 5000);
   setupRealtime();
   maybeShowAiExplainer();
   
@@ -1860,8 +1841,6 @@ async function signOut() {
   localStorage.removeItem('stwrd-auth');
   localStorage.removeItem('stwrd-auth-code-verifier');
   localStorage.removeItem('apiKey');
-  localStorage.removeItem('advisorCache');
-  localStorage.removeItem('advisorFingerprint');
   // Fire SDK signOut but don't block on it
   try {
     await Promise.race([
@@ -3192,139 +3171,9 @@ async function renderStats() {
   const myCount = active.filter(t => t.added_by === currentUser).length;
   const teamCount = active.filter(t => t.added_by !== currentUser && t.added_by).length;
 
-  // ── LIFE BALANCE SCORING ──────────────────────────────────
-  // Build from user's actual life categories — no hardcoded data
-  const categoryColors = {
-    work: '#60a5fa', family: '#22d3ee', health: '#fb923c', faith: '#a78bfa',
-    finance: '#fbbf24', growth: '#38bdf8', recharge: '#6b7280', personal: '#a78bfa',
-  };
-  const categoryAdvice = {
-    work:     { neglect: 'No work tasks this week' },
-    family:   { neglect: 'No family tasks this week' },
-    health:   { neglect: 'No health tasks this week — easy to skip' },
-    faith:    { neglect: "Faith hasn't shown up in your tasks" },
-    finance:  { neglect: 'No finance tasks this week' },
-    growth:   { neglect: 'No personal growth this week' },
-    recharge: { neglect: 'No recharge logged this week' },
-  };
-
-  // Use user's actual categories from DB, fall back to generic defaults
-  const baseCats = userLifeCategories.length > 0 ? userLifeCategories : [
-    { name: 'Marriage', icon: '💑', color: '#f472b6', keywords: ['marriage','spouse','wife','husband','partner','date','anniversary'] },
-    { name: 'Parenting', icon: '👨‍👩‍👧‍👦', color: '#22d3ee', keywords: ['kids','children','parenting','school','baby','family','son','daughter'] },
-    { name: 'Work', icon: '💼', color: '#60a5fa', keywords: ['work','meeting','email','client','invoice','project','career','job'] },
-    { name: 'Health', icon: '💪', color: '#fb923c', keywords: ['health','workout','gym','exercise','doctor','run','fitness','sleep'] },
-    { name: 'Faith', icon: '🙏', color: '#a78bfa', keywords: ['faith','pray','devotion','bible','worship','sermon','spiritual','god','church'] },
-    { name: 'Finances', icon: '💰', color: '#fbbf24', keywords: ['finance','money','bill','budget','payment','tax','savings','investment'] },
-    { name: 'Home', icon: '🏠', color: '#34d399', keywords: ['home','house','chores','cleaning','repair','groceries','errands'] },
-  ];
-
-  // For each category, build keywords from:
-  // 1. Category name itself (lowercase)
-  // 2. User's stored keywords
-  // 3. Any hat names that semantically match
-  const hatNames = userHats.map(h => h.name.toLowerCase());
-  const lifeCategories = baseCats.map(cat => {
-    const nameKey = cat.name.toLowerCase();
-    const storedKeywords = Array.isArray(cat.keywords) ? cat.keywords.map(k => k.toLowerCase()) : [];
-    // Add matching hat names as keywords (e.g. if user has "GNE" hat and "Work" category)
-    const matchingHats = hatNames.filter(h =>
-      storedKeywords.some(k => h.includes(k) || k.includes(h)) || h === nameKey
-    );
-    const allKeywords = [...new Set([nameKey, ...storedKeywords, ...matchingHats])];
-    const key = nameKey.split(' ')[0];
-    const advice = categoryAdvice[key] || { neglect: `No ${cat.name} tasks this week` };
-    const color = cat.color || categoryColors[key] || 'var(--accent)';
-    return { ...cat, color, keywords: allKeywords, advice };
-  });
-
-  // Distribution-based scoring — no goals needed
-  // Score reflects how balanced your attention is across life areas
-  const allThisWeek = [...active, ...completed.filter(t => t.created_at >= weekAgoStr)];
-  lastAllThisWeek = allThisWeek;
-  const totalThisWeek = allThisWeek.length || 1;
-
-  const lifeScores = lifeCategories.map(cat => {
-    const matched = allThisWeek.filter(t => {
-      // Prefer Claude-assigned life_area — accurate, no guessing
-      if (t.life_area) return t.life_area.toLowerCase() === cat.name.toLowerCase();
-      // Fall back to keyword matching for older tasks without life_area
-      const text = ((t.cleaned_task || t.content) + ' ' + (t.project || '')).toLowerCase();
-      return cat.keywords.some(k => matchesKeyword(text, k));
-    });
-    const count = matched.length;
-    const pct = Math.round((count / totalThisWeek) * 100);
-    return { ...cat, count, pct, matched: count };
-  });
-  lastLifeScores = lifeScores;
-
-  // Balance score: penalize neglect (0%) and overconcentration (>50% of week in one area)
-  // Ideal: activity spread across 4+ categories, no category completely neglected
-  const activeCategories = lifeScores.filter(c => c.count > 0).length;
-  const maxShare = Math.max(...lifeScores.map(c => c.pct));
-  const neglectedCount = lifeScores.filter(c => c.count === 0).length;
-  
-  // Base: 100 points
-  // -8 per completely neglected category (max -40)
-  // -15 if one category dominates >60% of your week
-  // -8 if one category dominates >40% of your week
-  // +5 if 5+ categories have activity
-  const neglectPenalty = Math.min(40, neglectedCount * 8);
-  const concentrationPenalty = maxShare > 60 ? 15 : maxShare > 40 ? 8 : 0;
-  const breadthBonus = activeCategories >= 5 ? 5 : 0;
-  const avgLifeScore = Math.max(0, Math.min(100, 100 - neglectPenalty - concentrationPenalty + breadthBonus));
-
   el.innerHTML = `
     <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;">Dashboard</div>
     <div style="color:var(--text2);font-size:13px;margin-bottom:20px;">Your life at a glance</div>
-
-    <!-- LIFE BALANCE SCORE -->
-    <div class="stat-card" style="margin-bottom:16px;position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#60a5fa,#22d3ee,#fb923c,#a78bfa,#fbbf24,#38bdf8);"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div>
-          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Life Balance</div>
-          
-        </div>
-        <div style="text-align:center;">
-          <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:${avgLifeScore >= 70 ? '#10b981' : avgLifeScore >= 40 ? '#fbbf24' : '#ef4444'};">${avgLifeScore}</div>
-          <div style="font-size:11px;color:var(--text2);">/ 100</div>
-        </div>
-      </div>
-      ${lifeScores.map((cat, idx) => `
-        <div onclick="showLifeDrilldown(${idx})" style="margin-bottom:10px;cursor:pointer;border-radius:8px;padding:4px;transition:all 0.2s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:14px;">${cat.icon}</span>
-              <span style="font-size:13px;font-weight:500;">${cat.name}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:12px;font-weight:600;color:${cat.count === 0 ? 'var(--p1)' : 'var(--text2)'};">${cat.count} task${cat.count !== 1 ? 's' : ''}</span>
-              <span style="font-size:10px;color:var(--text2);opacity:0.6;">${cat.pct}%</span>
-            </div>
-          </div>
-          <div style="background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;">
-            <div style="width:${Math.min(cat.pct * 2, 100)}%;height:100%;background:${cat.count === 0 ? 'var(--border)' : cat.color};border-radius:4px;transition:width 0.5s;"></div>
-          </div>
-          ${cat.count === 0 ? '<div style="font-size:11px;color:var(--text2);margin-top:3px;padding-left:22px;opacity:0.7;">' + cat.advice.neglect + '</div>' : ''}
-        </div>`).join('')}
-    </div>
-
-    <!-- AI ADVISOR PLACEHOLDER -->
-    <div id="aiAdvisorCard" class="stat-card" style="margin-bottom:16px;border-color:rgba(108,99,255,0.4);position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-size:20px;">🧠</div>
-          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);">AI Advisor</div>
-        </div>
-        <button onclick="refreshAdvisor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          Refresh
-        </button>
-      </div>
-      <div id="aiAdvisorContent" style="color:var(--text2);font-size:13px;">Analyzing your tasks...</div>
-    </div>
 
     <!-- TOP STATS ROW -->
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;">
@@ -3408,111 +3257,7 @@ async function renderStats() {
       </div>
     </div>
   `;
-
-  // Load AI advisor asynchronously
-  loadAiAdvisor(active, today, completionRate, completedThisWeek, lifeScores);
 }
-
-function refreshAdvisor() {
-  localStorage.removeItem('advisorCache');
-  localStorage.removeItem('advisorFingerprint');
-  const el = document.getElementById('aiAdvisorContent');
-  if (el) el.innerHTML = 'Regenerating insights...';
-  renderStats();
-}
-
-async function loadAiAdvisor(active, today, completionRate, completedThisWeek, lifeScores = []) {
-  const apiKey = localStorage.getItem('apiKey') || null;
-  if (active.length === 0) {
-    const el = document.getElementById('aiAdvisorContent');
-    if (el) el.innerHTML = '<span style="color:var(--text2);">Add tasks and an API key to get AI insights.</span>';
-    return;
-  }
-
-  // Build a fingerprint of current tasks — only re-run if tasks changed
-  const fingerprint = active.map(t => t.id + (t.priority||'') + (t.due_date||'') + (t.status||'')).sort().join('|');
-  const cached = localStorage.getItem('advisorCache');
-  const cachedPrint = localStorage.getItem('advisorFingerprint');
-
-  if (cached && cachedPrint === fingerprint) {
-    const el = document.getElementById('aiAdvisorContent');
-    if (el) el.innerHTML = cached;
-    return;
-  }
-
-  const taskSummary = active.slice(0, 30).map(t =>
-    `[${t.project}][${t.category}][${t.priority}]${t.due_date ? '[due:'+t.due_date+']' : ''} ${t.cleaned_task || t.content}`
-  ).join('\n');
-
-  const personalCtx = currentUserProfile?.ai_context ? `\nPersonal context: ${currentUserProfile.ai_context}` : '';
-  const prompt = `You are STWRD, ${currentUser}'s personal AI life manager.${personalCtx} Analyze their tasks and life balance and give them 3 specific, actionable insights.
-
-His tasks right now:
-${taskSummary}
-
-Today: ${today}
-Completion rate this week: ${completionRate}%
-Completed this week: ${completedThisWeek}
-
-Life balance this week (% of tasks in each area):
-${(lifeScores||[]).map(c => c.name + ': ' + c.pct + '% (' + c.count + ' tasks)').join(', ')}
-
-Give exactly 3 insights — mix task productivity AND life balance. Be specific, mention actual task names, be direct and warm:
-INSIGHT1_EMOJI: [emoji]
-INSIGHT1_TITLE: [short bold title]
-INSIGHT1_BODY: [1-2 sentences of specific advice]
-INSIGHT2_EMOJI: [emoji]
-INSIGHT2_TITLE: [short bold title]
-INSIGHT2_BODY: [1-2 sentences of specific advice]
-INSIGHT3_EMOJI: [emoji]
-INSIGHT3_TITLE: [short bold title]
-INSIGHT3_BODY: [1-2 sentences of specific advice]
-
-Focus on: quick wins, stress reduction, what AI can do for him, overdue items, or patterns you notice.`;
-
-  try {
-    const response = await fetch('/api/process', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, apiKey, maxTokens: 400, provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude') })
-    });
-    const data = await response.json();
-    const text = data.content?.[0]?.text || '';
-
-    const get = (key) => {
-      const match = text.match(new RegExp(key + ': (.+)'));
-      return match ? match[1].trim() : '';
-    };
-
-    const insights = [1,2,3].map(i => ({
-      emoji: get(`INSIGHT${i}_EMOJI`),
-      title: get(`INSIGHT${i}_TITLE`),
-      body: get(`INSIGHT${i}_BODY`)
-    })).filter(i => i.title);
-
-    const el = document.getElementById('aiAdvisorContent');
-    if (!el || insights.length === 0) return;
-
-        const fmt = s => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    const rendered = insights.map((i,idx) => `
-      <div style="margin-bottom:${idx < insights.length-1 ? '14px;padding-bottom:14px;border-bottom:1px solid var(--border)' : '0px'};">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <span style="font-size:18px;">${i.emoji}</span>
-          <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;">${fmt(i.title)}</span>
-        </div>
-        <div style="font-size:13px;color:var(--text2);line-height:1.5;padding-left:26px;">${fmt(i.body)}</div>
-      </div>`).join('');
-    // Render and cache
-    el.innerHTML = rendered;
-    localStorage.setItem('advisorCache', rendered);
-    localStorage.setItem('advisorFingerprint', fingerprint);
-
-  } catch(e) {
-    const el = document.getElementById('aiAdvisorContent');
-    if (el) el.innerHTML = '<span style="color:var(--text2);">Could not load insights right now.</span>';
-  }
-}
-
 // ─── UI HELPERS ───────────────────────────────────────────────
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -3520,7 +3265,6 @@ function showView(name) {
   document.getElementById(`view-${name}`).classList.add('active');
   document.getElementById(`nav-${name}`).classList.add('active');
   if (name === 'stats') renderStats();
-  if (name === 'progress') renderProgress();
   if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderKeywordEditor(); renderLifeAreasEditor(); }
   if (name === 'today') renderToday();
 }
@@ -3698,45 +3442,6 @@ function renderToday() {
 }
 
 // ─── DRILL DOWN VIEW ──────────────────────────────────────────
-// Smarter keyword matching — word boundary aware to avoid false partial matches
-function matchesKeyword(text, keyword) {
-  if (keyword.length <= 3) return text.includes(keyword); // short keywords: substring ok
-  const pattern = new RegExp('\\b' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-  return pattern.test(text);
-}
-
-let lastLifeScores = [];
-let lastAllThisWeek = [];
-
-function showLifeDrilldown(idx) {
-  const cat = lastLifeScores[idx];
-  if (!cat) return;
-  const pool = lastAllThisWeek.length > 0 ? lastAllThisWeek : tasks;
-  const keywords = cat.keywords || [];
-  const filtered = pool.filter(t => {
-    // Prefer Claude-assigned life_area
-    if (t.life_area) return t.life_area.toLowerCase() === cat.name.toLowerCase();
-    // Fall back to keyword matching for older tasks
-    const text = ((t.cleaned_task || t.content || '') + ' ' + (t.project || '')).toLowerCase();
-    return keywords.some(k => matchesKeyword(text, k));
-  });
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('view-drilldown').classList.add('active');
-  document.getElementById('nav-stats').classList.add('active');
-  document.getElementById('drilldownTitle').textContent = cat.name + ' Tasks';
-
-  const list = document.getElementById('drilldownList');
-  if (filtered.length === 0) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✨</div><div class="empty-state-title">No ${cat.name} tasks this week</div></div>`;
-    return;
-  }
-  const renderCard = (task) => renderTaskCard(task, { mode: 'life' });
-  list.innerHTML = groupTasksBySections(filtered)
-    .map(sec => sectionHeaderHTML(sec) + sec.tasks.map(renderCard).join(''))
-    .join('');
-}
-
 function showDrilldown(title, filterFn) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -3979,305 +3684,6 @@ function showToast(msg) {
 }
 
 
-// ─── SNAPSHOT SYSTEM ──────────────────────────────────────────
-async function saveWeeklySnapshot() {
-  try {
-    const today = new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
-    const weekStart = getWeekStart();
-
-    // Check if we already saved this week
-    const existing = await sbFetch(`snapshots?user_id=eq.${currentUserId}&week_start=eq.${weekStart}&limit=1`);
-    if (existing && existing.length > 0) return; // already saved this week
-
-    const active = tasks;
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 7);
-    const since = thirtyDaysAgo.toISOString();
-    let completed = [];
-    try { completed = await sbFetch(`tasks?status=eq.done&created_at=gte.${since}&limit=200`) || []; } catch(e) {}
-
-    const total = active.length;
-    const p1 = active.filter(t => t.priority === 'P1').length;
-    const completedCount = completed.length;
-    const addedCount = active.length + completedCount;
-    const completionRate = addedCount > 0 ? Math.round((completedCount / addedCount) * 100) : 0;
-
-    const projCounts = {};
-    userHats.forEach(h => {
-      projCounts[h.name.toLowerCase()] = active.filter(t => t.project === h.name).length;
-    });
-
-    // Life balance scores — use user's actual categories
-    const snapCats = userLifeCategories.length > 0 ? userLifeCategories : [
-      { name: 'Work', keywords: ['work','meeting','email','client','invoice','project'] },
-      { name: 'Family', keywords: ['family','home','kids','spouse','partner','baby'] },
-      { name: 'Health', keywords: ['health','workout','gym','exercise','doctor','run'] },
-      { name: 'Faith', keywords: ['faith','church','pray','devotion','bible','worship'] },
-      { name: 'Finance', keywords: ['finance','money','bill','budget','payment','tax'] },
-      { name: 'Growth', keywords: ['growth','learn','read','course','study','skill'] },
-      { name: 'Recharge', keywords: ['recharge','rest','relax','game','movie','vacation'] },
-    ];
-
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoStr = weekAgo.toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
-    const allThisWeek = [...active, ...completed.filter(t => t.created_at >= weekAgoStr)];
-    const snapTotal = allThisWeek.length || 1;
-
-    const lifeScores = {};
-    snapCats.forEach(cat => {
-      const nameKey = cat.name.toLowerCase();
-      const keywords = Array.isArray(cat.keywords) ? cat.keywords.map(k => k.toLowerCase()) : [nameKey];
-      const allKeys = [...new Set([nameKey, ...keywords])];
-      const matched = allThisWeek.filter(t => {
-        const text = ((t.cleaned_task || t.content) + ' ' + (t.project || '')).toLowerCase();
-        return allKeys.some(k => matchesKeyword(text, k));
-      }).length;
-      lifeScores[nameKey] = Math.round((matched / snapTotal) * 100);
-    });
-
-    const basePcts = Object.values(lifeScores).map(p => Math.min(p, 100));
-    const baseAvg = basePcts.reduce((a,b) => a+b, 0) / basePcts.length;
-    const totalOverflow = Object.values(lifeScores).reduce((a,p) => a + Math.max(0, p-100), 0);
-    const zeroCount = Object.values(lifeScores).filter(p => p === 0).length;
-    const overflowCredit = Math.min(totalOverflow * 0.05, zeroCount * 10);
-    const lifeScore = Math.min(100, Math.round(baseAvg + overflowCredit));
-
-    // Build dynamic project counts from user's actual hats
-    const projSnapshot = {};
-    userHats.forEach(h => {
-      projSnapshot[`proj_${h.name.toLowerCase().replace(/\s+/g,'_')}`] = active.filter(t => t.project === h.name).length;
-    });
-
-    // Build dynamic life scores from user's actual categories
-    const lifeSnapshot = {};
-    Object.entries(lifeScores).forEach(([key, val]) => {
-      lifeSnapshot[`life_${key.split(' ')[0].toLowerCase()}`] = val || 0;
-    });
-
-    await sbFetch('snapshots', 'POST', {
-      user_id: currentUserId,
-      week_start: weekStart,
-      snapshot_date: today,
-      life_score: lifeScore,
-      completion_rate: completionRate,
-      active_tasks: total,
-      completed_tasks: completedCount,
-      p1_tasks: p1,
-      ...projSnapshot,
-      ...lifeSnapshot,
-    });
-    console.log('STWRD: Weekly snapshot saved for', weekStart);
-  } catch(e) {
-    console.log('Snapshot save failed (table may not exist yet):', e.message);
-  }
-}
-
-function getWeekStart() {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun
-  const diff = now.getDate() - day;
-  const sunday = new Date(now.setDate(diff));
-  return sunday.toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
-}
-
-async function renderProgress() {
-  const el = document.getElementById('progressContent');
-  if (!el) return;
-
-  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2);">Loading your journey...</div>';
-
-  let snapshots = [];
-  try {
-    snapshots = await sbFetch(`snapshots?user_id=eq.${currentUserId}&order=week_start.asc&limit=12`) || [];
-  } catch(e) {
-    el.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;text-align:center;">
-        <div style="font-size:32px;margin-bottom:12px;">🗄️</div>
-        <div style="font-family:'Syne',sans-serif;font-size:16px;margin-bottom:8px;">One-time setup needed</div>
-        <div style="color:var(--text2);font-size:13px;line-height:1.6;margin-bottom:16px;">Create a <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;">snapshots</code> table in Supabase to track your 30-day journey.</div>
-        <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:left;font-size:12px;color:var(--text2);font-family:monospace;line-height:1.8;">
-          create table snapshots (<br>
-          &nbsp;&nbsp;id uuid default gen_random_uuid() primary key,<br>
-          &nbsp;&nbsp;week_start date not null unique,<br>
-          &nbsp;&nbsp;snapshot_date date,<br>
-          &nbsp;&nbsp;life_score int,<br>
-          &nbsp;&nbsp;completion_rate int,<br>
-          &nbsp;&nbsp;active_tasks int,<br>
-          &nbsp;&nbsp;completed_tasks int,<br>
-          &nbsp;&nbsp;p1_tasks int,<br>
-          &nbsp;&nbsp;proj_gne int, proj_caliber int,<br>
-          &nbsp;&nbsp;proj_personal int, proj_serveants int,<br>
-          &nbsp;&nbsp;life_work int, life_family int,<br>
-          &nbsp;&nbsp;life_health int, life_faith int,<br>
-          &nbsp;&nbsp;life_finance int, life_growth int,<br>
-          &nbsp;&nbsp;life_recharge int,<br>
-          &nbsp;&nbsp;created_at timestamptz default now()<br>
-          );
-        </div>
-        <button onclick="saveWeeklySnapshot().then(()=>renderProgress())" style="margin-top:16px;width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">Save First Snapshot</button>
-      </div>`;
-    return;
-  }
-
-  if (snapshots.length === 0) {
-    el.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center;">
-        <div style="font-size:40px;margin-bottom:12px;">🌱</div>
-        <div style="font-family:'Syne',sans-serif;font-size:18px;margin-bottom:8px;">Day 1 starts now</div>
-        <div style="color:var(--text2);font-size:14px;margin-bottom:20px;">Save your first snapshot to begin tracking your 30-day journey.</div>
-        <button onclick="saveWeeklySnapshot().then(()=>renderProgress())" style="width:100%;padding:14px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;">
-          📸 Save Week 1 Snapshot
-        </button>
-      </div>`;
-    return;
-  }
-
-  const latest = snapshots[snapshots.length - 1];
-  const first = snapshots[0];
-  const scoreDelta = latest.life_score - first.life_score;
-  const weekCount = snapshots.length;
-  // Calculate actual days in from first snapshot date
-  const firstDate = new Date(first.week_start || first.created_at);
-  const today = new Date();
-  const daysIn = Math.min(30, Math.max(1, Math.floor((today - firstDate) / (1000 * 60 * 60 * 24))));
-  const daysLeft = Math.max(0, 30 - daysIn);
-
-  // Build life score sparkline data
-  const maxScore = Math.max(...snapshots.map(s => s.life_score), 1);
-  const sparkH = 60;
-  const sparkW = 260;
-  const pts = snapshots.map((s, i) => {
-    const x = snapshots.length === 1 ? sparkW/2 : (i / (snapshots.length - 1)) * sparkW;
-    const y = sparkH - (s.life_score / 100) * sparkH;
-    return `${x},${y}`;
-  }).join(' ');
-
-  const lifeCategories = userLifeCategories.length > 0
-    ? userLifeCategories.map(c => ({
-        key: 'life_' + c.name.split(' ')[0].toLowerCase(),
-        name: c.name,
-        color: c.color || '#60a5fa',
-        icon: c.icon || '⚖️'
-      }))
-    : [
-        { key: 'life_work', name: 'Work', color: '#60a5fa', icon: '💼' },
-        { key: 'life_family', name: 'Family', color: '#22d3ee', icon: '🏠' },
-        { key: 'life_health', name: 'Health', color: '#fb923c', icon: '💪' },
-        { key: 'life_faith', name: 'Faith', color: '#a78bfa', icon: '🙏' },
-        { key: 'life_finance', name: 'Finance', color: '#fbbf24', icon: '💰' },
-        { key: 'life_growth', name: 'Growth', color: '#38bdf8', icon: '🌱' },
-        { key: 'life_recharge', name: 'Recharge', color: '#6b7280', icon: '🎮' },
-      ];
-
-  el.innerHTML = `
-    <!-- HEADER STATS -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;">
-        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);">${daysIn}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Days In</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;">
-        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:${daysLeft === 0 ? 'var(--done)' : 'var(--text)'};">${daysLeft}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Days Left</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;">
-        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:${scoreDelta >= 0 ? 'var(--done)' : 'var(--p1)'};">${scoreDelta >= 0 ? '+' : ''}${scoreDelta}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Score Δ</div>
-      </div>
-    </div>
-
-    <!-- LIFE SCORE TREND -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div>
-          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Life Score Trend</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${daysIn} day${daysIn !== 1 ? 's' : ''} tracked</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:${latest.life_score >= 70 ? '#10b981' : latest.life_score >= 40 ? '#fbbf24' : '#ef4444'};">${latest.life_score}</div>
-          <div style="font-size:11px;color:var(--text2);">this week</div>
-        </div>
-      </div>
-      <svg width="100%" viewBox="0 0 ${sparkW} ${sparkH + 10}" style="overflow:visible;">
-        <defs>
-          <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/>
-            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        ${snapshots.length > 1 ? `
-          <polygon points="${pts} ${sparkW},${sparkH} 0,${sparkH}" fill="url(#sparkGrad)"/>
-          <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        ` : ''}
-        ${snapshots.map((s, i) => {
-          const x = snapshots.length === 1 ? sparkW/2 : (i / (snapshots.length - 1)) * sparkW;
-          const y = sparkH - (s.life_score / 100) * sparkH;
-          return `<circle cx="${x}" cy="${y}" r="4" fill="var(--accent)" stroke="var(--bg)" stroke-width="2"/>
-                  <text x="${x}" y="${y - 8}" text-anchor="middle" fill="var(--text2)" font-size="9">${s.life_score}</text>`;
-        }).join('')}
-      </svg>
-      <div style="display:flex;justify-content:space-between;margin-top:4px;">
-        <span style="font-size:10px;color:var(--text2);">Wk 1</span>
-        <span style="font-size:10px;color:var(--text2);">Wk ${weekCount}</span>
-      </div>
-    </div>
-
-    <!-- CATEGORY TRENDS -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;">
-      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:16px;">Category Progress</div>
-      ${lifeCategories.map(cat => {
-        const first_val = Math.min(first[cat.key] || 0, 100);
-        const latest_val = Math.min(latest[cat.key] || 0, 100);
-        const delta = latest_val - first_val;
-        return `
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:13px;">${cat.icon}</span>
-              <span style="font-size:13px;font-weight:500;">${cat.name}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:11px;color:${delta > 0 ? 'var(--done)' : delta < 0 ? 'var(--p1)' : 'var(--text2)'};">${delta > 0 ? '↑' : delta < 0 ? '↓' : '→'} ${Math.abs(delta)}%</span>
-              <span style="font-size:11px;color:var(--text2);">${latest_val}%</span>
-            </div>
-          </div>
-          <div style="background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;">
-            <div style="width:${latest_val}%;height:100%;background:${cat.color};border-radius:4px;transition:width 0.5s;"></div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-
-    <!-- COMPLETION TREND -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;">
-      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:14px;">Weekly Completion</div>
-      <div style="display:flex;align-items:flex-end;gap:6px;height:60px;">
-        ${snapshots.map((s, i) => {
-          const h = Math.max(4, (s.completion_rate / 100) * 56);
-          const color = s.completion_rate >= 70 ? '#10b981' : s.completion_rate >= 40 ? '#fbbf24' : '#ef4444';
-          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-            <div style="font-size:9px;color:var(--text2);">${s.completion_rate}%</div>
-            <div style="width:100%;height:${h}px;background:${color};border-radius:3px 3px 0 0;min-height:4px;"></div>
-          </div>`;
-        }).join('')}
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:6px;">
-        <span style="font-size:10px;color:var(--text2);">Week 1</span>
-        <span style="font-size:10px;color:var(--text2);">Week ${weekCount}</span>
-      </div>
-    </div>
-
-    <!-- SAVE THIS WEEK -->
-    <button onclick="saveWeeklySnapshot().then(()=>renderProgress())" style="width:100%;padding:14px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      Save This Week's Snapshot
-    </button>
-  `;
-}
-
-
 // ─── ONBOARDING ────────────────────────────────────────────────
 const OB_DEFAULT_HATS = [
   { name: 'Personal', icon: '✨', color: '#a78bfa' },
@@ -4475,7 +3881,7 @@ function renderObMetrics() {
       <span style="font-size:18px;">${m.icon}</span>
       <div style="flex:1;">
         <div style="font-size:14px;font-weight:500;color:${m.active ? 'var(--text)' : 'var(--text2)'};">${m.name}</div>
-        <div style="font-size:11px;color:var(--text2);">${m.active ? 'Included in your Life Score' : 'Tap to include'}</div>
+        <div style="font-size:11px;color:var(--text2);">${m.active ? 'Tracked as a life area' : 'Tap to include'}</div>
       </div>
       <div style="width:22px;height:22px;border-radius:50%;border:2px solid ${m.active ? m.color : 'var(--border)'};background:${m.active ? m.color : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;">
         ${m.active ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
@@ -4590,18 +3996,6 @@ function resetCopyBtn() {
     btn.innerHTML = '📋 Copy that prompt';
     btn.style.color = '';
     btn.style.borderColor = '';
-  }
-}
-
-async function resetJourney() {
-  if (!confirm('Reset your 30-day journey? This clears your snapshot history and starts fresh from today. Your tasks won\'t be affected.')) return;
-  try {
-    await sbFetch(`snapshots?user_id=eq.${currentUserId}`, 'DELETE');
-    showToast('✓ Journey reset — starting fresh from today');
-    setTimeout(() => saveWeeklySnapshot(), 500);
-    if (document.getElementById('view-progress').classList.contains('active')) renderProgress();
-  } catch(e) {
-    showToast('❌ Could not reset: ' + e.message);
   }
 }
 
@@ -4964,7 +4358,6 @@ async function completeOnboarding() {
     await loadKnowledge();
     await loadCorrections();
     await loadTasks();
-    setTimeout(saveWeeklySnapshot, 5000);
     setupRealtime();
     maybeShowAiExplainer();
     showToast('✨ Welcome to STWRD, ' + name + '!');

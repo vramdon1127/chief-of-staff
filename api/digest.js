@@ -32,41 +32,6 @@ function firstNameFrom(profile) {
   return first.split('@')[0] || 'friend';
 }
 
-// Generic baseline used only when a user has no life_categories rows yet.
-// No user-specific tokens — a brand-new user still gets something scoreable.
-const DEFAULT_LIFE_CATEGORIES = [
-  { name: 'Work', icon: '💼', goal: 5 },
-  { name: 'Family', icon: '🏠', goal: 3 },
-  { name: 'Health', icon: '💪', goal: 3 },
-  { name: 'Faith', icon: '🙏', goal: 1 },
-  { name: 'Finance', icon: '💰', goal: 2 },
-  { name: 'Personal', icon: '✨', goal: 2 },
-  { name: 'Growth', icon: '🌱', goal: 1 },
-];
-
-// Build the keyword map the scoring loop operates over.
-// Always seeds each category with its own lowercased name so a user whose
-// life_categories rows have no `keywords` array still gets a baseline match;
-// stored keywords merge on top.
-function buildUserLifeCategories(rows) {
-  const source = (rows && rows.length > 0) ? rows : DEFAULT_LIFE_CATEGORIES;
-  return source.map(c => {
-    const name = c.name || '';
-    const nameLower = name.toLowerCase();
-    const stored = Array.isArray(c.keywords)
-      ? c.keywords.map(k => String(k).toLowerCase()).filter(Boolean)
-      : [];
-    const keywords = [...new Set([nameLower, ...stored])].filter(Boolean);
-    return {
-      name,
-      icon: c.icon || '⚖️',
-      keywords,
-      // Default goal so scoring math can't divide by zero.
-      goal: (typeof c.goal === 'number' && c.goal > 0) ? c.goal : 2,
-    };
-  });
-}
-
 // Resolve a project name → hex color for the email template.
 // CSS variables don't render in email clients, so we force hex: prefer the
 // user's stored per-project color (written during onboarding), fall back to
@@ -163,16 +128,6 @@ async function sendDigestToUser(profile, resendKey) {
     const p1Tasks = tasks.filter(t => t.priority === 'P1');
     const aiCompleteTasks = tasks.filter(t => t.category === 'AI Complete');
 
-    // ── Build life balance scores ───────────────────────────────
-    // Categories come from the user's own life_categories rows (set during
-    // onboarding and editable in Settings). Falls back to a generic default
-    // set if the user has none yet.
-    const userCategoryRows = await sbFetch(
-      `life_categories?user_id=eq.${userId}&active=eq.true&order=sort_order.asc`,
-      true
-    ) || [];
-    const lifeCategories = buildUserLifeCategories(userCategoryRows);
-
     // Per-user project color map, used for the project dots next to Due Today
     // items. Matches what the in-app drilldowns render.
     const userProjectRows = await sbFetch(
@@ -191,25 +146,9 @@ async function sendDigestToUser(profile, resendKey) {
       completedThisWeek = await sbFetch(`tasks?user_id=eq.${userId}&status=eq.done&created_at=gte.${weekAgoStr}T00:00:00Z&limit=200`, true) || [];
     } catch(e) {}
 
-    const allThisWeek = [...tasks, ...completedThisWeek];
-    const lifeScores = lifeCategories.map(cat => {
-      const matched = allThisWeek.filter(t => {
-        const text = ((t.cleaned_task || t.content) + ' ' + (t.project || '')).toLowerCase();
-        return cat.keywords.some(k => text.includes(k));
-      }).length;
-      const pct = Math.round((matched / cat.goal) * 100);
-      return { ...cat, matched, pct };
-    });
-
-    const basePcts = lifeScores.map(c => Math.min(c.pct, 100));
-    const baseAvg = basePcts.reduce((a,b) => a+b, 0) / lifeScores.length;
-    const totalOverflow = lifeScores.reduce((a,c) => a + Math.max(0, c.pct - 100), 0);
-    const zeroCount = lifeScores.filter(c => c.pct === 0).length;
-    const overflowCredit = Math.min(totalOverflow * 0.05, zeroCount * 10);
-    const lifeScore = Math.min(100, Math.round(baseAvg + overflowCredit));
-
-    const completionRate = allThisWeek.length > 0 
-      ? Math.round((completedThisWeek.length / allThisWeek.length) * 100) 
+    const totalThisWeek = tasks.length + completedThisWeek.length;
+    const completionRate = totalThisWeek > 0
+      ? Math.round((completedThisWeek.length / totalThisWeek) * 100)
       : 0;
 
     // ── Ask Claude for one sharp insight ───────────────────────
@@ -220,7 +159,6 @@ async function sendDigestToUser(profile, resendKey) {
     const aiPrompt = `You are STWRD, ${firstName}'s personal AI life manager. Generate a sharp, specific morning briefing.
 
 TODAY: ${todayDisplay}
-LIFE SCORE THIS WEEK: ${lifeScore}/100
 COMPLETION RATE: ${completionRate}%
 DUE TODAY: ${dueTodayTasks.length} tasks
 OVERDUE: ${overdueTasks.length} tasks
@@ -229,9 +167,6 @@ AI CAN HANDLE: ${aiCompleteTasks.length} tasks
 
 ACTIVE TASKS:
 ${taskSummary || 'No active tasks'}
-
-LIFE BALANCE:
-${lifeScores.map(c => `${c.icon} ${c.name}: ${c.pct}% (${c.matched}/${c.goal})`).join('\n')}
 
 Give exactly ONE sharp, actionable focus recommendation for today. Be specific — name actual tasks. Be direct, warm, brief. Max 2 sentences.
 
@@ -258,29 +193,7 @@ FOCUS: [your recommendation here]`;
     const focusLine = focusRaw.replace(/\*\*(.+?)\*\*/g, '$1').replace(/^FOCUS:\s*/i, '').trim();
 
     // ── Build HTML email ────────────────────────────────────────
-    const scoreColor = lifeScore >= 70 ? '#34d399' : lifeScore >= 40 ? '#fbbf24' : '#ef4444';
-
-    const lifeBarsHtml = lifeScores.map(cat => {
-      const pctCapped = Math.min(cat.pct, 100);
-      const catColor = {
-        Work: '#60a5fa', Family: '#34d399', Health: '#fb923c',
-        Faith: '#a78bfa', Finance: '#fbbf24', Growth: '#38bdf8', Recharge: '#6b7280'
-      }[cat.name] || '#7c6fef';
-      const status = cat.pct > 100 ? '🔥' : cat.pct === 100 ? '✓' : cat.pct >= 50 ? '~' : '!';
-      const statusColor = cat.pct >= 100 ? catColor : cat.pct >= 50 ? '#fbbf24' : '#ef4444';
-      return `
-        <tr>
-          <td style="padding:6px 0;font-size:13px;color:#f0f0ff;width:80px;">${cat.icon} ${cat.name}</td>
-          <td style="padding:6px 8px;">
-            <div style="background:#2a2a3d;border-radius:3px;height:6px;overflow:hidden;">
-              <div style="width:${pctCapped}%;height:100%;background:${catColor};border-radius:3px;"></div>
-            </div>
-          </td>
-          <td style="padding:6px 0;font-size:12px;color:#8888aa;text-align:right;white-space:nowrap;">${cat.matched}/${cat.goal} <span style="color:${statusColor};font-weight:700;">${status}</span></td>
-        </tr>`;
-    }).join('');
-
-    const dueTodayHtml = dueTodayTasks.length > 0 
+    const dueTodayHtml = dueTodayTasks.length > 0
       ? dueTodayTasks.slice(0, 5).map(t => {
           const projColor = projectHexFor(t.project, projectColorByName);
           return `<tr>
@@ -308,15 +221,9 @@ FOCUS: [your recommendation here]`;
   <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
 
     <!-- HEADER -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-      <div>
-        <div style="font-size:22px;font-weight:800;color:#7c6fef;letter-spacing:-0.5px;">STWRD</div>
-        <div style="font-size:13px;color:#8888aa;margin-top:2px;">${todayDisplay}</div>
-      </div>
-      <div style="text-align:center;background:#12121a;border:1px solid #2a2a3d;border-radius:12px;padding:10px 16px;">
-        <div style="font-size:28px;font-weight:800;color:${scoreColor};">${lifeScore}</div>
-        <div style="font-size:10px;color:#8888aa;">Life Score</div>
-      </div>
+    <div style="margin-bottom:24px;">
+      <div style="font-size:22px;font-weight:800;color:#7c6fef;letter-spacing:-0.5px;">STWRD</div>
+      <div style="font-size:13px;color:#8888aa;margin-top:2px;">${todayDisplay}</div>
     </div>
 
     <!-- AI FOCUS -->
@@ -350,12 +257,6 @@ FOCUS: [your recommendation here]`;
       </div>
     </div>
 
-    <!-- LIFE BALANCE -->
-    <div style="background:#12121a;border:1px solid #2a2a3d;border-radius:14px;padding:18px;margin-bottom:24px;">
-      <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8888aa;margin-bottom:12px;">Life Balance This Week</div>
-      <table style="width:100%;border-collapse:collapse;">${lifeBarsHtml}</table>
-    </div>
-
     <!-- CTA -->
     <div style="text-align:center;margin-bottom:24px;">
       <a href="https://getstwrd.com" style="display:inline-block;background:linear-gradient(135deg,#7c6fef,#8b5cf6);color:white;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:14px;font-weight:700;letter-spacing:0.5px;">Open STWRD →</a>
@@ -380,7 +281,7 @@ FOCUS: [your recommendation here]`;
       body: JSON.stringify({
         from: 'STWRD <onboarding@resend.dev>',
         to: [toEmail],
-        subject: `STWRD · ${todayDisplay} · Score ${lifeScore}`,
+        subject: `STWRD · ${todayDisplay}`,
         html
       })
     });
