@@ -3437,7 +3437,12 @@ function showView(name) {
   document.getElementById(`nav-${name}`).classList.add('active');
   if (name === 'stats') renderStats();
   if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderKeywordEditor(); renderLifeAreasEditor(); }
-  if (name === 'today') renderToday();
+  if (name === 'today') {
+    renderToday();
+    startTodayAutoRefresh();
+  } else {
+    stopTodayAutoRefresh();
+  }
 }
 
 function setFilter(filter, btn) {
@@ -3572,44 +3577,339 @@ async function saveEdit() {
 }
 
 // ─── TODAY VIEW ───────────────────────────────────────────────
-function renderToday() {
-  const today = new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'});
-  const todayTasks = sortByPriority(tasks.filter(t => t.due_date === today));
-  const overdue = sortByPriority(tasks.filter(t => t.due_date && t.due_date < today));
-  const upcoming = sortByPriority(tasks.filter(t => t.due_date && t.due_date > today)).slice(0, 5);
+// Module state. Persists across re-renders (task toggle, event expand,
+// auto-refresh) so scroll / UI state stays coherent.
+let todayCalendarEvents = [];
+let todayCalendarError = null;        // null | 'CALENDAR_NOT_CONNECTED' | Loop B typed codes
+let todayEarlierExpanded = false;     // Zone B collapse state (synced from <details> toggle)
+let todayExpandedEventId = null;      // Zone C: which calendar card is expanded (single-open)
+let todayCalendarPromptDismissed = false; // Session-scope dismiss for connect notice
+let todayAutoRefreshTimer = null;
+const TODAY_AUTO_REFRESH_MS = 5 * 60 * 1000;
 
-  const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+const GCAL_EVENT_COLOR = '#4285F4';
 
-  let html = `
-    <div style="margin-bottom:20px;">
-      <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;">Today</div>
-      <div style="color:var(--text2);font-size:14px;">${dateStr}</div>
+function isTodayRelevantTask(task, todayStr) {
+  if (!task || task.status === 'done') return false;
+  if (task.due_date && task.due_date < todayStr) return true;  // overdue
+  if (task.due_date === todayStr) return true;                  // due today
+  if (!task.due_date && task.priority === 'P1') return true;    // P1 untimed
+  return false;
+}
+
+function eventStartMs(ev) {
+  return ev?.start?.dateTime ? Date.parse(ev.start.dateTime) : null;
+}
+function eventEndMs(ev) {
+  return ev?.end?.dateTime ? Date.parse(ev.end.dateTime) : null;
+}
+function isAllDayEvent(ev) {
+  return !!(ev?.start?.date && !ev?.start?.dateTime);
+}
+
+// Bucket an event for zone placement.
+function classifyEvent(ev, nowMs) {
+  if (isAllDayEvent(ev)) return 'allday';
+  const end = eventEndMs(ev);
+  const start = eventStartMs(ev);
+  if (!start || !end) return 'other';
+  if (end < nowMs) return 'past';
+  return 'future';  // live-happening-now counts as future (it's ahead of "now" conceptually)
+}
+
+function formatTimeShort(date) {
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatEventDuration(startMs, endMs) {
+  const mins = Math.max(1, Math.round((endMs - startMs) / 60000));
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  if (rem === 0) return `${hrs} hr${hrs !== 1 ? 's' : ''}`;
+  return `${hrs} hr ${rem} min`;
+}
+
+// Extract the first conference URL (Zoom / Google Meet / MS Teams) from a free-text blob.
+function extractMeetingUrl(text) {
+  if (!text) return null;
+  const patterns = [
+    /https?:\/\/[\w.-]*zoom\.us\/[^\s<>"']+/i,
+    /https?:\/\/meet\.google\.com\/[^\s<>"']+/i,
+    /https?:\/\/teams\.microsoft\.com\/[^\s<>"']+/i,
+    /https?:\/\/teams\.live\.com\/meet\/[^\s<>"']+/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m) return m[0];
+  }
+  return null;
+}
+
+function gcalEventUrl(eventId) {
+  // Google's event-page URL. The `eid` param accepts raw event IDs for primary
+  // calendar events. The tab opens Google's web UI authenticated to whichever
+  // account the user is signed into.
+  return `https://calendar.google.com/calendar/event?eid=${encodeURIComponent(eventId || '')}`;
+}
+
+function escapeTodayText(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderCalendarEventRow(ev, { dimmed = false } = {}) {
+  const startMs = eventStartMs(ev);
+  const endMs = eventEndMs(ev);
+  const title = escapeTodayText(ev.summary || '(no title)');
+  const duration = (startMs && endMs) ? formatEventDuration(startMs, endMs) : '';
+  const timeLabel = startMs ? formatTimeShort(new Date(startMs)) : '';
+  const isExpanded = todayExpandedEventId === ev.id;
+  const dimStyle = dimmed ? 'opacity:0.6;' : '';
+  const safeId = String(ev.id || '').replace(/'/g, "\\'");
+
+  let expandedPanel = '';
+  if (isExpanded) {
+    const loc = ev.location ? `<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">📍 ${escapeTodayText(ev.location)}</div>` : '';
+    const descRaw = ev.description || '';
+    const descTrim = descRaw.length > 200 ? descRaw.slice(0, 200).trim() + '…' : descRaw;
+    const desc = descTrim ? `<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px;white-space:pre-wrap;">${escapeTodayText(descTrim)}</div>` : '';
+    const joinUrl = extractMeetingUrl(descRaw) || extractMeetingUrl(ev.location);
+    const joinBtn = joinUrl
+      ? `<a href="${escapeTodayText(joinUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;background:var(--accent3);color:#0a0a0f;text-decoration:none;padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;margin-right:8px;">Join call</a>`
+      : '';
+    const openBtn = `<a href="${gcalEventUrl(ev.id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;color:${GCAL_EVENT_COLOR};text-decoration:none;font-size:12px;">→ Open in Google Calendar</a>`;
+    expandedPanel = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+      ${loc}${desc}
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">${joinBtn}${openBtn}</div>
     </div>`;
-
-  const renderCard = (t) => renderTaskCard(t, { mode: 'today', partnerView: viewingPartner });
-
-  if (overdue.length > 0) {
-    html += `<div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--p1);margin-bottom:10px;">⚠️ Overdue (${overdue.length})</div>`;
-    html += overdue.map(renderCard).join('');
   }
 
-  if (todayTasks.length > 0) {
-    html += `<div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin:16px 0 10px;">Due Today (${todayTasks.length})</div>`;
-    html += todayTasks.map(renderCard).join('');
-  } else {
-    html += `<div class="empty-state" style="padding:32px 0;">
-      <div class="empty-state-icon">🎉</div>
-      <div class="empty-state-title">Nothing due today!</div>
-      <div class="empty-state-sub">Add due dates to tasks to see them here</div>
+  return `<div class="cal-event-card" onclick="toggleCalendarEventExpand('${safeId}')" style="${dimStyle}background:var(--surface);border:1px solid var(--border);border-left:3px solid ${GCAL_EVENT_COLOR};border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.2s;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
+        <span style="font-size:14px;flex-shrink:0;">📅</span>
+        <span style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
+        ${duration ? `<span style="color:var(--text2);font-size:11px;white-space:nowrap;flex-shrink:0;">(${duration})</span>` : ''}
+      </div>
+      <span style="color:var(--text2);font-size:12px;font-weight:500;white-space:nowrap;">${timeLabel}</span>
+    </div>
+    ${expandedPanel}
+  </div>`;
+}
+
+function toggleCalendarEventExpand(eventId) {
+  todayExpandedEventId = (todayExpandedEventId === eventId) ? null : eventId;
+  renderToday();
+}
+
+function renderCalendarConnectNotice() {
+  if (todayCalendarPromptDismissed) return '';
+  return `<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);">
+    <span style="font-size:16px;">📅</span>
+    <span style="flex:1;">Connect Google Calendar to see events alongside tasks</span>
+    <button onclick="event.stopPropagation();signInWithGoogle()" style="background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Connect →</button>
+    <button onclick="event.stopPropagation();dismissTodayCalendarNotice()" aria-label="Dismiss" style="background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;padding:4px;">×</button>
+  </div>`;
+}
+
+function renderCalendarErrorNotice(code) {
+  if (code === 'CALENDAR_NETWORK_ERROR') {
+    return `<div style="background:var(--surface);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);">
+      <span style="flex:1;">Couldn't load calendar.</span>
+      <button onclick="refreshTodayCalendar()" style="background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Retry →</button>
+    </div>`;
+  }
+  if (code === 'CALENDAR_AUTH_FAILED' || code === 'CALENDAR_NOT_CONNECTED') {
+    return renderCalendarConnectNotice();
+  }
+  if (code === 'CALENDAR_AUTH_REDIRECTING') {
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;text-align:center;color:var(--text2);font-size:13px;">Reconnecting to Google Calendar…</div>`;
+  }
+  return '';
+}
+
+function dismissTodayCalendarNotice() {
+  todayCalendarPromptDismissed = true;
+  renderToday();
+}
+
+async function loadTodayCalendar({ force = false } = {}) {
+  // Short-circuit if the user has never connected — don't trigger ensureCalendarToken's
+  // auto-redirect for a user who's about to see their first Today render.
+  if (!readStoredGcalToken()) {
+    todayCalendarEvents = [];
+    todayCalendarError = 'CALENDAR_NOT_CONNECTED';
+    return;
+  }
+  try {
+    if (force) clearCalendarCache();
+    const events = await fetchCalendarPrimary();
+    todayCalendarEvents = Array.isArray(events) ? events : [];
+    todayCalendarError = null;
+  } catch (err) {
+    todayCalendarEvents = [];
+    todayCalendarError = err?.code || 'CALENDAR_UNKNOWN_ERROR';
+  }
+}
+
+async function refreshTodayCalendar() {
+  await loadTodayCalendar({ force: true });
+  renderToday();
+}
+
+async function renderToday() {
+  const el = document.getElementById('todayContent');
+  if (!el) return;
+
+  // Preserve scroll only when the user is actually viewing Today — otherwise
+  // a background re-render (e.g. task toggle from another view) would yank
+  // them elsewhere.
+  const todayViewActive = document.getElementById('view-today')?.classList.contains('active');
+  const savedScroll = todayViewActive ? window.scrollY : null;
+
+  // Pull calendar (cached 10 min per Loop B). Safe to call on every render.
+  await loadTodayCalendar();
+
+  const now = new Date();
+  const nowMs = now.getTime();
+  const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const todayStartMs = new Date(todayStr + 'T00:00:00').getTime();
+  const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // ── Classify events ──────────────────────────────────────────
+  const allDayEvents = [];
+  const pastEvents = [];
+  const futureEvents = [];
+  for (const ev of todayCalendarEvents) {
+    const kind = classifyEvent(ev, nowMs);
+    if (kind === 'allday') allDayEvents.push(ev);
+    else if (kind === 'past') pastEvents.push(ev);
+    else if (kind === 'future') futureEvents.push(ev);
+  }
+  pastEvents.sort((a, b) => (eventStartMs(a) || 0) - (eventStartMs(b) || 0));
+  futureEvents.sort((a, b) => (eventStartMs(a) || 0) - (eventStartMs(b) || 0));
+
+  // ── Classify tasks ───────────────────────────────────────────
+  const overdueTasks = sortByPriority(tasks.filter(t =>
+    t.status !== 'done' && t.due_date && t.due_date < todayStr
+  ));
+  const dueTodayActive = sortByPriority(tasks.filter(t =>
+    t.status !== 'done' && t.due_date === todayStr
+  ));
+  const p1Untimed = sortByPriority(tasks.filter(t =>
+    t.status !== 'done' && !t.due_date && t.priority === 'P1'
+  ));
+  // Completed-today tasks for Zone B.
+  const completedToday = tasks.filter(t =>
+    t.status === 'done' && t.completed_at && Date.parse(t.completed_at) >= todayStartMs
+  );
+
+  const renderTodayTaskCard = (t) => renderTaskCard(t, { mode: 'today', partnerView: viewingPartner });
+
+  // ── ZONE A: Header band ──────────────────────────────────────
+  let zoneA = `<div style="margin-bottom:16px;">
+    <div style="font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px;">
+      <span>📅</span>
+      <span>Today, ${dateStr}</span>
+    </div>`;
+  if (allDayEvents.length > 0) {
+    zoneA += `<div style="margin-top:6px;padding-left:22px;">`
+      + allDayEvents.map(ev => `<div style="font-size:12px;color:var(--text2);padding:2px 0;">• ${escapeTodayText(ev.summary || '(untitled)')}</div>`).join('')
+      + `</div>`;
+  }
+  zoneA += `</div>`;
+
+  // ── ZONE B: Earlier today (collapsible) ──────────────────────
+  const earlierCount = pastEvents.length + completedToday.length;
+  let zoneB = '';
+  if (earlierCount > 0) {
+    const earlierPastHtml = pastEvents.map(ev => renderCalendarEventRow(ev, { dimmed: true })).join('');
+    const earlierTaskHtml = completedToday
+      .sort((a, b) => Date.parse(a.completed_at) - Date.parse(b.completed_at))
+      .map(renderTodayTaskCard)
+      .join('');
+    zoneB = `<details id="todayEarlier"${todayEarlierExpanded ? ' open' : ''} ontoggle="todayEarlierExpanded = this.open" style="margin-bottom:16px;">
+      <summary style="cursor:pointer;list-style:none;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--text2);padding:6px 0;user-select:none;">
+        Earlier today <span style="opacity:0.6;font-weight:400;">· ${earlierCount}</span>
+      </summary>
+      <div style="padding-top:8px;">${earlierPastHtml}${earlierTaskHtml}</div>
+    </details>`;
+  }
+
+  // ── ZONE C: Now indicator + ahead ────────────────────────────
+  const nowLabel = formatTimeShort(now);
+  let zoneC = `<div style="display:flex;align-items:center;gap:10px;margin:4px 0 16px;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
+    <div style="flex:1;height:1px;background:var(--border);"></div>
+    <span>now ${nowLabel}</span>
+    <div style="flex:1;height:1px;background:var(--border);"></div>
+  </div>`;
+
+  // Error / connect notice (inline, above ahead list)
+  if (todayCalendarError) {
+    zoneC += renderCalendarErrorNotice(todayCalendarError);
+  }
+
+  // Overdue tasks first (they don't carry times, and they're the highest urgency).
+  if (overdueTasks.length > 0) {
+    zoneC += overdueTasks.map(renderTodayTaskCard).join('');
+  }
+
+  // Future calendar events, chronological.
+  if (futureEvents.length > 0) {
+    zoneC += futureEvents.map(ev => renderCalendarEventRow(ev)).join('');
+  }
+
+  // Untimed tasks bucket: due-today + P1 untimed, priority-sorted together.
+  const untimedPool = sortByPriority([...dueTodayActive, ...p1Untimed]);
+  if (untimedPool.length > 0) {
+    if (futureEvents.length > 0) {
+      zoneC += `<div style="display:flex;align-items:center;gap:10px;margin:16px 0 10px;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
+        <div style="flex:1;height:1px;background:var(--border);opacity:0.5;"></div>
+        <span>No specific time</span>
+        <div style="flex:1;height:1px;background:var(--border);opacity:0.5;"></div>
+      </div>`;
+    }
+    zoneC += untimedPool.map(renderTodayTaskCard).join('');
+  }
+
+  // Fully empty Zone C (no error, no items) — friendly message + Capture CTA.
+  const zoneCIsEmpty = !todayCalendarError
+    && overdueTasks.length === 0
+    && futureEvents.length === 0
+    && untimedPool.length === 0;
+  if (zoneCIsEmpty) {
+    zoneC += `<div style="text-align:center;padding:40px 20px;color:var(--text2);">
+      <div style="font-size:32px;margin-bottom:10px;">✨</div>
+      <div style="font-family:'Syne',sans-serif;font-size:16px;color:var(--text);margin-bottom:6px;">Nothing ahead for today</div>
+      <button onclick="showView('capture')" style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--accent);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">Capture something for tomorrow →</button>
     </div>`;
   }
 
-  if (upcoming.length > 0) {
-    html += `<div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin:16px 0 10px;">Coming Up</div>`;
-    html += upcoming.map(renderCard).join('');
-  }
+  el.innerHTML = zoneA + zoneB + zoneC;
 
-  document.getElementById('todayContent').innerHTML = html;
+  if (savedScroll !== null) {
+    window.scrollTo({ top: savedScroll, behavior: 'instant' });
+  }
+}
+
+// ── Auto-refresh ─────────────────────────────────────────────
+// Tick every 5 min while Today is visible AND the tab is foregrounded, so
+// the "now" indicator and calendar list stay current without burning API
+// calls in the background.
+function startTodayAutoRefresh() {
+  stopTodayAutoRefresh();
+  todayAutoRefreshTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    if (!document.getElementById('view-today')?.classList.contains('active')) return;
+    renderToday();
+  }, TODAY_AUTO_REFRESH_MS);
+}
+
+function stopTodayAutoRefresh() {
+  if (todayAutoRefreshTimer) {
+    clearInterval(todayAutoRefreshTimer);
+    todayAutoRefreshTimer = null;
+  }
 }
 
 // ─── DRILL DOWN VIEW ──────────────────────────────────────────
@@ -4355,7 +4655,14 @@ function maybeShowAiExplainer() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') resetCopyBtn();
+  if (document.visibilityState !== 'visible') return;
+  resetCopyBtn();
+  // When the tab returns to foreground while Today is active, re-render so the
+  // "now" indicator and event list reflect current time without waiting for
+  // the 5-min auto-refresh tick.
+  if (document.getElementById('view-today')?.classList.contains('active')) {
+    renderToday();
+  }
 });
 
 // Block pull-to-refresh on iOS when modal is open
