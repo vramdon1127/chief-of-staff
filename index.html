@@ -3686,16 +3686,81 @@ function briefingTaskFingerprint() {
     .join(',');
 }
 
-// Gather the signals Claude needs. windowType='today' is the only value wired
-// for this loop; the signature leaves room for 'horizon' without breaking
-// callers when Loop D-2 lands.
+// ── Date helpers for briefings (Loop D-3) ─────────────────────
+// Claude was inventing wrong day/date pairings (e.g. "Wednesday 4/28" when
+// 4/28 is Tuesday). Fix: emit day_name + relative_label in the context so
+// the model never has to compute day-of-week itself.
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// YYYY-MM-DD → "Tuesday". Uses UTC construction to avoid local-TZ drift (a
+// date string like "2026-04-28" must always resolve to its calendar weekday,
+// regardless of where the browser is).
+function dayNameFromDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  const [y, m, d] = parts.map(Number);
+  if (!y || !m || !d) return null;
+  return DAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+// Extract day_name for any calendar event. Timed events carry a TZ offset in
+// start.dateTime; we format in America/Chicago to match the rest of the app.
+// All-day events carry start.date — fall through to dayNameFromDate.
+function eventDayName(ev) {
+  if (ev?.start?.dateTime) {
+    return new Date(Date.parse(ev.start.dateTime))
+      .toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Chicago' });
+  }
+  if (ev?.start?.date) return dayNameFromDate(ev.start.date);
+  return null;
+}
+
+// Target YYYY-MM-DD vs today YYYY-MM-DD → human relative label:
+//   "today" / "tomorrow" / "yesterday" / "this Tuesday" / "next Monday" /
+//   "3 days ago" / "in 10 days" / "last Wednesday"
+// Banding matches the Loop D-3 spec exactly.
+function relativeDateLabel(targetDateStr, todayDateStr) {
+  if (!targetDateStr || !todayDateStr) return null;
+  const [ty, tm, td] = todayDateStr.split('-').map(Number);
+  const [y, m, d] = targetDateStr.split('-').map(Number);
+  const today_utc = Date.UTC(ty, tm - 1, td);
+  const target_utc = Date.UTC(y, m - 1, d);
+  const delta = Math.round((target_utc - today_utc) / 86400000);
+  const dayName = DAY_NAMES[new Date(target_utc).getUTCDay()];
+
+  if (delta === 0) return 'today';
+  if (delta === 1) return 'tomorrow';
+  if (delta === -1) return 'yesterday';
+  if (delta >= 2 && delta <= 6) return `this ${dayName}`;
+  if (delta >= 7 && delta <= 13) return `next ${dayName}`;
+  if (delta >= 14) return `in ${delta} days`;
+  if (delta <= -2 && delta >= -6) return `${Math.abs(delta)} days ago`;
+  if (delta <= -7 && delta >= -13) return `last ${dayName}`;
+  return `${Math.abs(delta)} days ago`; // 14+ ago
+}
+
+// Version tag baked into fingerprints so existing cached briefings from
+// earlier loops regenerate under the new context shape + prompt hardening.
+// Bump when the briefing schema or prompt changes in a way that makes old
+// cached text misleading.
+const BRIEFING_VERSION = 'd3';
+
+// Gather the signals Claude needs. windowType accepts 'today' (Loop D) and
+// 'horizon' (Loop D-2). Both branches emit {date, day_name, relative_label}
+// on every date-bearing field so the model doesn't infer day-of-week.
 function composeBriefingContext(windowType = 'today') {
-  const now = new Date();
-  const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-  const today_utc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const nowDate = new Date();
+  // Anchor "today" to Chicago-local calendar date so this works regardless of
+  // where the browser is and handles the UTC-vs-local midnight edge.
+  const todayStr = nowDate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const today_utc = Date.UTC(ty, tm - 1, td);
+  const nowIso = nowDate.toISOString();
+  const todayDayName = dayNameFromDate(todayStr);
+  const nowField = { iso: nowIso, day_name: todayDayName, date: todayStr };
 
   if (windowType === 'horizon') {
-    // Horizon window: next 7 days of calendar events, next 14 days of tasks.
     const HORIZON_EVENT_DAYS = 7;
     const HORIZON_TASK_DAYS = 14;
 
@@ -3705,11 +3770,9 @@ function composeBriefingContext(windowType = 'today') {
     };
     const daysFromToday = (dateStr) => Math.round((dayOf(dateStr) - today_utc) / 86400000);
 
-    // Events: exclude all-day holidays (already filtered at calendar list
-    // level), sort chronologically, cap at 20 most significant by signal-
-    // first ordering: events with attendees float above solo blocks, then
-    // chrono order. Cap keeps prompt bounded; 20 is enough to see the shape
-    // of a week without noise.
+    // Map events into a shape Claude can narrate directly: date, day_name,
+    // and relative_label are all precomputed so the model never has to do
+    // its own day-of-week math.
     const evs = Array.isArray(horizonCalendarEvents) ? horizonCalendarEvents : [];
     const horizonEventMapped = evs.map(ev => {
       const allDay = !!(ev?.start?.date && !ev?.start?.dateTime);
@@ -3721,7 +3784,9 @@ function composeBriefingContext(windowType = 'today') {
       return {
         title: ev.summary || '(untitled)',
         date: localDate,
-        time: (!allDay && startMs) ? new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
+        day_name: localDate ? dayNameFromDate(localDate) : null,
+        relative_label: localDate ? relativeDateLabel(localDate, todayStr) : null,
+        time: (!allDay && startMs) ? new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : null,
         duration: (!allDay && startMs && endMs) ? formatEventDuration(startMs, endMs) : null,
         all_day: allDay,
         days_from_now: localDate ? daysFromToday(localDate) : null,
@@ -3740,8 +3805,6 @@ function composeBriefingContext(windowType = 'today') {
         return ak - bk;
       })
       .slice(0, 20)
-      // Restore chronological order for the model's consumption — easier for
-      // the LLM to narrate the week in order.
       .sort((a, b) => (a.days_from_now - b.days_from_now) || ((a.time || '') < (b.time || '') ? -1 : 1));
 
     const active = Array.isArray(tasks) ? tasks.filter(t => t && t.status !== 'done') : [];
@@ -3751,6 +3814,8 @@ function composeBriefingContext(windowType = 'today') {
       .map(t => ({
         title: t.cleaned_task || t.content || '',
         due_date: t.due_date,
+        due_day_name: dayNameFromDate(t.due_date),
+        due_relative_label: relativeDateLabel(t.due_date, todayStr),
         days_until_due: daysFromToday(t.due_date),
         priority: t.priority || 'P3',
         project: t.project || null,
@@ -3763,7 +3828,7 @@ function composeBriefingContext(windowType = 'today') {
     const still_overdue_count = active.filter(t => t.due_date && t.due_date < todayStr).length;
 
     return {
-      now: now.toISOString(),
+      now: nowField,
       window: 'horizon',
       horizon_events,
       upcoming_deadlines,
@@ -3771,16 +3836,21 @@ function composeBriefingContext(windowType = 'today') {
     };
   }
 
-  // Default / 'today' window.
+  // 'today' window.
   const evs = Array.isArray(todayCalendarEvents) ? todayCalendarEvents : [];
   const today_events = evs.map(ev => {
     const allDay = !!(ev?.start?.date && !ev?.start?.dateTime);
-    if (allDay) return { title: ev.summary || '(untitled)', all_day: true };
+    const base = {
+      title: ev.summary || '(untitled)',
+      day_name: eventDayName(ev) || todayDayName,
+      relative_label: 'today',
+    };
+    if (allDay) return { ...base, all_day: true };
     const startMs = ev?.start?.dateTime ? Date.parse(ev.start.dateTime) : null;
     const endMs = ev?.end?.dateTime ? Date.parse(ev.end.dateTime) : null;
     return {
-      title: ev.summary || '(untitled)',
-      time: startMs ? new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
+      ...base,
+      time: startMs ? new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : null,
       duration: (startMs && endMs) ? formatEventDuration(startMs, endMs) : null,
       all_day: false,
     };
@@ -3797,6 +3867,9 @@ function composeBriefingContext(windowType = 'today') {
       return {
         title: t.cleaned_task || t.content || '',
         days_overdue,
+        overdue_since_date: t.due_date,
+        overdue_since_day_name: dayNameFromDate(t.due_date),
+        overdue_relative_label: relativeDateLabel(t.due_date, todayStr),
         priority: t.priority || 'P3',
         project: t.project || null,
         notes: t.notes || null,
@@ -3810,16 +3883,24 @@ function composeBriefingContext(windowType = 'today') {
   const today_priority_tasks = active
     .filter(t => (t.due_date === todayStr || (!t.due_date && t.priority === 'P1')))
     .filter(t => t.priority === 'P1' || t.priority === 'P2')
-    .map(t => ({
-      title: t.cleaned_task || t.content || '',
-      priority: t.priority || 'P3',
-      project: t.project || null,
-      notes: t.notes || null,
-    }))
+    .map(t => {
+      const row = {
+        title: t.cleaned_task || t.content || '',
+        priority: t.priority || 'P3',
+        project: t.project || null,
+        notes: t.notes || null,
+      };
+      if (t.due_date) {
+        row.due_date = t.due_date;
+        row.due_day_name = dayNameFromDate(t.due_date);
+        row.due_relative_label = relativeDateLabel(t.due_date, todayStr);
+      }
+      return row;
+    })
     .slice(0, 8);
 
   return {
-    now: now.toISOString(),
+    now: nowField,
     window: windowType,
     today_events,
     overdue_tasks,
@@ -3832,6 +3913,7 @@ const BRIEFING_SYSTEM_PROMPT = `You are the user's chief of staff. You know thei
 Write a 2-3 sentence briefing about their day. Be warm but observational — notice patterns like tasks that have been sitting overdue since a specific date, a stacked morning versus a clearer afternoon, or a light day that opens space for backlog work. Reference specific items by name (people, projects, meetings) when it adds signal.
 
 Do NOT:
+- When referring to a day or date, use EXACTLY the date, day_name, and relative_label values from the context. Do NOT compute day-of-week yourself. Do NOT invent new date/day pairings. If an event's day_name is "Tuesday" and its date is "2026-04-28", refer to it as "Tuesday 4/28" or "Tuesday the 28th" or "next Tuesday" — never as any other day name.
 - Use bullet points or lists
 - Be performative, cheerleadery, or use phrases like "you've got this" or "let's make today great"
 - Summarize everything — pick the 2-3 most important signals
@@ -3908,7 +3990,7 @@ async function renderBriefing() {
 
   const now = Date.now();
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-  const fingerprint = `${today}|${briefingTaskFingerprint()}`;
+  const fingerprint = `${today}|${BRIEFING_VERSION}|${briefingTaskFingerprint()}`;
   const cacheHit = briefingCache.fingerprint === fingerprint
     && briefingCache.text
     && (now - briefingCache.ts) < BRIEFING_CACHE_TTL_MS;
@@ -3970,6 +4052,7 @@ Write a 2-3 sentence forward-looking briefing about the week ahead. Notice the S
 Be the kind of advisor who says "Tuesday is going to be rough, and the Workiva deadline lands Friday — you'll want to start on that Sunday night" rather than listing what's on the calendar.
 
 Do NOT:
+- When referring to a day or date, use EXACTLY the date, day_name, and relative_label values from the context. Do NOT compute day-of-week yourself. Do NOT invent new date/day pairings. If an event's day_name is "Tuesday" and its date is "2026-04-28", refer to it as "Tuesday 4/28" or "Tuesday the 28th" or "next Tuesday" — never as any other day name.
 - Use bullet points or lists
 - Repeat what today's briefing already said (today is covered separately)
 - Be performative, cheerleadery, or reassuring
@@ -4064,7 +4147,7 @@ async function renderHorizonBriefing() {
 
   const now = Date.now();
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-  const fingerprint = `${today}|${horizonTaskFingerprint()}`;
+  const fingerprint = `${today}|${BRIEFING_VERSION}|${horizonTaskFingerprint()}`;
   const cacheHit = horizonBriefingCache.fingerprint === fingerprint
     && horizonBriefingCache.text
     && (now - horizonBriefingCache.ts) < HORIZON_BRIEFING_CACHE_TTL_MS;
