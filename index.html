@@ -1531,6 +1531,16 @@ window.addEventListener('load', async () => {
             const tokenData = await tokenRes.json();
             console.log('[STWRD] Token exchange succeeded, user:', tokenData.user?.id);
 
+            // Capture Google's access token from the PKCE response body. This is
+            // where it actually lives for the flowType:'pkce' config — the SDK's
+            // session object strips it before onAuthStateChange fires.
+            if (tokenData.provider_token) {
+              writeGcalToken(tokenData.provider_token);
+              console.log('[STWRD] gcal token captured via pkce-exchange, expires in ~3600s');
+            } else {
+              console.warn('[STWRD] no provider_token on pkce-exchange — calendar features will prompt for re-auth');
+            }
+
             // Manually persist the session in the shape Supabase expects
             const sessionPayload = {
               access_token: tokenData.access_token,
@@ -1564,7 +1574,18 @@ window.addEventListener('load', async () => {
         window.history.replaceState(null, '', url.pathname + (url.search || ''));
       }
     } else if (hasHashToken) {
-      // Implicit flow (fallback) — let detectSessionInUrl process the hash
+      // Implicit flow (fallback) — grab provider_token from the URL fragment
+      // before we clear it, then let detectSessionInUrl process the hash.
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const providerToken = hashParams.get('provider_token');
+        if (providerToken) {
+          writeGcalToken(providerToken);
+          console.log('[STWRD] gcal token captured via oauth-callback, expires in ~3600s');
+        } else {
+          console.warn('[STWRD] no provider_token on oauth-callback — calendar features will prompt for re-auth');
+        }
+      } catch (e) {}
       await new Promise(r => setTimeout(r, 600));
       window.location.hash = '';
     }
@@ -1622,12 +1643,15 @@ window.addEventListener('load', async () => {
 // Handle auth state changes
 sbClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
-    // Persist Google's access token for calendar fetches. See the GOOGLE CALENDAR
-    // block for the { token, expires_at } format and the 5-min safety buffer.
-    // Supabase does not expose Google's own expires_in on the session object;
-    // Google access tokens default to 1 hour, which is what writeGcalToken uses.
+    // Persist Google's access token for calendar fetches. Supabase's session
+    // object strips provider_token in PKCE mode — the actual capture happens
+    // in the PKCE exchange and oauth-callback hash branches above. This is a
+    // fallback for any path where the SDK does surface it.
     if (session.provider_token) {
       writeGcalToken(session.provider_token);
+      console.log('[STWRD] gcal token captured via session');
+    } else if (!readStoredGcalToken()) {
+      console.warn('[STWRD] no provider_token on session — calendar features will prompt for re-auth');
     }
     // Replace history so swipe-back doesn't return to login screen,
     // but preserve the ?invite= param so partner linking still works
