@@ -786,6 +786,82 @@
     margin-bottom: 16px;
   }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* BRIEFING CARD (Chief of Staff, top of Dashboard) */
+  .briefing-card {
+    position: relative;
+    background: linear-gradient(135deg, rgba(124,111,239,0.08) 0%, rgba(244,114,182,0.06) 60%, rgba(16,185,129,0.05) 100%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .briefing-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
+    opacity: 0.6;
+  }
+  .briefing-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .briefing-refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .briefing-refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .briefing-refresh-btn:disabled { opacity: 0.4; cursor: wait; }
+  .briefing-refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+  .briefing-text {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-size: 15.5px;
+    line-height: 1.65;
+    color: var(--text);
+    opacity: 0;
+    animation: briefingFadeIn 0.4s ease forwards;
+  }
+  @keyframes briefingFadeIn { to { opacity: 1; } }
+  .briefing-fallback { opacity: 1; animation: none; color: var(--text2); font-style: normal; font-family: 'DM Sans', sans-serif; font-size: 13px; }
+  .briefing-skeleton {
+    display: flex; flex-direction: column; gap: 10px; padding: 2px 0;
+  }
+  .briefing-skeleton-line {
+    height: 12px;
+    background: linear-gradient(90deg, var(--surface2) 0%, rgba(255,255,255,0.06) 50%, var(--surface2) 100%);
+    background-size: 200% 100%;
+    border-radius: 4px;
+    animation: briefingPulse 1.4s ease-in-out infinite;
+  }
+  .briefing-skeleton-line:nth-child(1) { width: 92%; }
+  .briefing-skeleton-line:nth-child(2) { width: 78%; }
+  .briefing-skeleton-line:nth-child(3) { width: 60%; }
+  @keyframes briefingPulse {
+    0%, 100% { background-position: 200% 0; opacity: 0.7; }
+    50% { background-position: -200% 0; opacity: 1; }
+  }
 </style>
 </head>
 <body>
@@ -1200,6 +1276,7 @@
 
   <!-- STATS VIEW -->
   <div class="view" id="view-stats">
+    <div id="briefingCard"></div>
     <div id="statsGrid"></div>
   </div>
 
@@ -3439,6 +3516,192 @@ async function bulkMarkComplete() {
   showToast(`✓ ${ops.length} task${ops.length !== 1 ? 's' : ''} completed`);
 }
 
+// ─── CHIEF OF STAFF BRIEFING ──────────────────────────────────
+// 2-3 sentence advisor-tone paragraph at the top of Dashboard. Reads from
+// today's calendar events (Loop C cache via loadTodayCalendar) and the user's
+// tasks (module var). Cached 1 hour or until task state fingerprint changes.
+const BRIEFING_CACHE_TTL_MS = 60 * 60 * 1000;
+let briefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+
+// Fingerprint covers task set + completion state, so completing a task on the
+// Today tab invalidates the cache and the next Dashboard open regenerates.
+function briefingTaskFingerprint() {
+  if (!Array.isArray(tasks)) return '';
+  return tasks.map(t => `${t.id}|${t.status || ''}`).sort().join(',');
+}
+
+// Gather the signals Claude needs. windowType='today' is the only value wired
+// for this loop; the signature leaves room for 'horizon' without breaking
+// callers when Loop D-2 lands.
+function composeBriefingContext(windowType = 'today') {
+  const now = new Date();
+  const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+
+  const evs = Array.isArray(todayCalendarEvents) ? todayCalendarEvents : [];
+  const today_events = evs.map(ev => {
+    const allDay = !!(ev?.start?.date && !ev?.start?.dateTime);
+    if (allDay) return { title: ev.summary || '(untitled)', all_day: true };
+    const startMs = ev?.start?.dateTime ? Date.parse(ev.start.dateTime) : null;
+    const endMs = ev?.end?.dateTime ? Date.parse(ev.end.dateTime) : null;
+    return {
+      title: ev.summary || '(untitled)',
+      time: startMs ? new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
+      duration: (startMs && endMs) ? formatEventDuration(startMs, endMs) : null,
+      all_day: false,
+    };
+  });
+
+  const active = Array.isArray(tasks) ? tasks.filter(t => t && t.status !== 'done') : [];
+
+  const overdue_tasks = active
+    .filter(t => t.due_date && t.due_date < todayStr)
+    .map(t => {
+      const [y, m, d] = t.due_date.split('-').map(Number);
+      const due = Date.UTC(y, m - 1, d);
+      const today_utc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+      const days_overdue = Math.max(1, Math.round((today_utc - due) / 86400000));
+      return {
+        title: t.cleaned_task || t.content || '',
+        days_overdue,
+        priority: t.priority || 'P3',
+        project: t.project || null,
+        notes: t.notes || null,
+      };
+    })
+    .sort((a, b) => b.days_overdue - a.days_overdue)
+    .slice(0, 8);
+
+  // Today's urgent slice: explicit due=today plus P1 untimed. Notes retained
+  // because pattern cues often live there ("waiting on X for signature").
+  const today_priority_tasks = active
+    .filter(t => (t.due_date === todayStr || (!t.due_date && t.priority === 'P1')))
+    .filter(t => t.priority === 'P1' || t.priority === 'P2')
+    .map(t => ({
+      title: t.cleaned_task || t.content || '',
+      priority: t.priority || 'P3',
+      project: t.project || null,
+      notes: t.notes || null,
+    }))
+    .slice(0, 8);
+
+  return {
+    now: now.toISOString(),
+    window: windowType,
+    today_events,
+    overdue_tasks,
+    today_priority_tasks,
+  };
+}
+
+const BRIEFING_SYSTEM_PROMPT = `You are the user's chief of staff. You know their calendar and their task list.
+
+Write a 2-3 sentence briefing about their day. Be warm but observational — notice patterns like tasks that have been sitting overdue since a specific date, a stacked morning versus a clearer afternoon, or a light day that opens space for backlog work. Reference specific items by name (people, projects, meetings) when it adds signal.
+
+Do NOT:
+- Use bullet points or lists
+- Be performative, cheerleadery, or use phrases like "you've got this" or "let's make today great"
+- Summarize everything — pick the 2-3 most important signals
+- Exceed 60 words
+
+Write in prose. Write like a trusted advisor who actually knows this person's life.
+
+Example outputs to calibrate tone:
+
+"Your morning is stacked with four meetings before noon, but things ease up after the Supplier Invoice at 12. The two tax returns for Salley and IRA have been sitting overdue since the 14th — worth closing those today. Evening wraps with Lila's video call at 8."
+
+"Light calendar day — just the Lila call at 8 PM. You've got space to finally tackle the NGTF 990 research you've been pushing, and Clayton's wedding picture reply from the 12th is still waiting. Good day to clear the backlog."`;
+
+async function generateBriefing(ctx) {
+  const apiKey = localStorage.getItem('apiKey') || null;
+  const response = await fetch('/api/process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      apiKey,
+      systemPrompt: BRIEFING_SYSTEM_PROMPT,
+      prompt: 'Here is the context. Write the briefing.\n\n' + JSON.stringify(ctx, null, 2),
+      maxTokens: 220,
+      provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude'),
+    }),
+  });
+  if (!response.ok) throw new Error(`Briefing HTTP ${response.status}`);
+  const data = await response.json();
+  const text = data?.content?.[0]?.text;
+  if (!text || typeof text !== 'string') throw new Error('Briefing empty response');
+  // Claude occasionally wraps the output in quotes (because the examples are
+  // quoted). Strip a single outer pair if present.
+  return text.trim().replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1').trim();
+}
+
+function renderBriefingSkeleton(el) {
+  el.innerHTML = `
+    <div class="briefing-card">
+      <div class="briefing-label">
+        <span>🧭 Chief of Staff</span>
+        <button class="briefing-refresh-btn" disabled title="Regenerating…" aria-label="Regenerating briefing">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+      <div class="briefing-skeleton">
+        <div class="briefing-skeleton-line"></div>
+        <div class="briefing-skeleton-line"></div>
+        <div class="briefing-skeleton-line"></div>
+      </div>
+    </div>`;
+}
+
+function renderBriefingContent(el, text, { fallback = false } = {}) {
+  const textClass = fallback ? 'briefing-text briefing-fallback' : 'briefing-text';
+  el.innerHTML = `
+    <div class="briefing-card">
+      <div class="briefing-label">
+        <span>🧭 Chief of Staff</span>
+        <button class="briefing-refresh-btn" onclick="refreshBriefing()" title="Regenerate briefing" aria-label="Regenerate briefing">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+      <div class="${textClass}">${escapeTodayText(text)}</div>
+    </div>`;
+}
+
+async function renderBriefing() {
+  const el = document.getElementById('briefingCard');
+  if (!el) return;
+
+  // Warm the calendar cache. Cheap hit if Today was already visited; at most
+  // one fetch the first time Dashboard opens in a session.
+  try { await loadTodayCalendar(); } catch (e) { /* briefing still works with empty events */ }
+
+  const now = Date.now();
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const fingerprint = `${today}|${briefingTaskFingerprint()}`;
+  const cacheHit = briefingCache.fingerprint === fingerprint
+    && briefingCache.text
+    && (now - briefingCache.ts) < BRIEFING_CACHE_TTL_MS;
+
+  if (cacheHit) {
+    renderBriefingContent(el, briefingCache.text);
+    return;
+  }
+
+  renderBriefingSkeleton(el);
+
+  try {
+    const ctx = composeBriefingContext('today');
+    const text = await generateBriefing(ctx);
+    briefingCache = { fingerprint, text, ts: Date.now(), windowType: 'today' };
+    renderBriefingContent(el, text);
+  } catch (err) {
+    console.warn('[Briefing] generation failed:', err?.message || err);
+    renderBriefingContent(el, 'Briefing unavailable — check back in a minute.', { fallback: true });
+  }
+}
+
+function refreshBriefing() {
+  briefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+  renderBriefing();
+}
+
 async function renderStats() {
   const el = document.getElementById('statsGrid');
   if (!el) return;
@@ -3571,7 +3834,7 @@ function showView(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`view-${name}`).classList.add('active');
   document.getElementById(`nav-${name}`).classList.add('active');
-  if (name === 'stats') renderStats();
+  if (name === 'stats') { renderBriefing(); renderStats(); }
   if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderKeywordEditor(); renderLifeAreasEditor(); }
   if (name === 'today') {
     renderToday();
