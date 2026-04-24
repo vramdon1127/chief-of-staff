@@ -1898,16 +1898,73 @@ async function ensureCalendarToken() {
   throw pending;
 }
 
-// Fetch events for a single calendar day in the user's local timezone.
-// Returns Event[] with { id, summary, start, end, location?, description? }.
-// Uses an in-memory 10-minute cache keyed by the date. On 401 mid-flight,
-// invalidates the token, re-ensures once, and retries. On network error,
-// retries once before giving up. Callers catch typed errors:
+// List the user's subscribed calendars. Cached 1 hour because subscriptions
+// rarely change. Returns [{ id, summary, primary, selected, accessRole }].
+// Used to query events across every calendar the user has turned on in
+// Google Calendar (work, family, HoneyBook, etc.), minus holiday calendars.
+const GCAL_LIST_TTL_MS = 60 * 60 * 1000;
+let calendarListCache = { list: null, fetchedAt: 0 };
+
+async function listUserCalendars() {
+  const now = Date.now();
+  if (calendarListCache.list && (now - calendarListCache.fetchedAt) < GCAL_LIST_TTL_MS) {
+    return calendarListCache.list;
+  }
+  const token = await ensureCalendarToken();
+  const url = 'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250';
+  const doFetch = (t) => fetch(url, { headers: { Authorization: `Bearer ${t}` } });
+
+  let res;
+  try {
+    res = await doFetch(token);
+  } catch (e) {
+    const err = new Error('CALENDAR_LIST_NETWORK_ERROR');
+    err.code = 'CALENDAR_LIST_NETWORK_ERROR';
+    err.cause = e;
+    throw err;
+  }
+  if (res.status === 401) {
+    clearGcalToken();
+    const freshToken = await ensureCalendarToken();
+    res = await doFetch(freshToken);
+  }
+  if (!res.ok) {
+    const err = new Error(`CALENDAR_LIST_FAILED_${res.status}`);
+    err.code = `CALENDAR_LIST_FAILED_${res.status}`;
+    err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
+  const list = (data.items || []).map(c => ({
+    id: c.id,
+    summary: c.summary,
+    primary: !!c.primary,
+    // Google omits `selected` on the primary + explicitly-on calendars; treat
+    // missing as true and only drop when explicitly false.
+    selected: c.selected !== false,
+    accessRole: c.accessRole,
+  }));
+  calendarListCache = { list, fetchedAt: now };
+  return list;
+}
+
+function isHolidayCalendar(cal) {
+  if (!cal) return false;
+  if (String(cal.id || '').includes('#holiday@')) return true;
+  if (String(cal.summary || '').toLowerCase().startsWith('holidays in')) return true;
+  return false;
+}
+
+// Fetch events for a single calendar day across every selected, non-holiday
+// calendar the user subscribes to. Returns Event[] with
+// { id, summary, start, end, location?, description?, _calendarId, _calendarName }.
+// Uses the module-scope 10-min date-keyed cache. Per-calendar errors degrade
+// gracefully: one broken calendar logs a warning and the others still render.
+// Callers catch typed errors:
 //   CALENDAR_AUTH_REDIRECTING — browser is navigating for re-auth
 //   CALENDAR_AUTH_FAILED      — re-auth couldn't even initiate
-//   CALENDAR_NETWORK_ERROR    — network failure after retry
-//   CALENDAR_FETCH_FAILED_<N> — non-401 HTTP error from Google
-async function fetchCalendarPrimary(date = new Date()) {
+//   CALENDAR_NETWORK_ERROR    — EVERY calendar fetch failed (rare; total outage)
+async function fetchCalendarEvents(date = new Date()) {
   const dateKey = date.toLocaleDateString('en-CA');
   const now = Date.now();
   if (calendarCache.date === dateKey
@@ -1922,54 +1979,133 @@ async function fetchCalendarPrimary(date = new Date()) {
   dayEnd.setDate(dayEnd.getDate() + 1);
   const timeMin = dayStart.toISOString();
   const timeMax = dayEnd.toISOString();
-  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events`
+
+  // Resolve target calendars. If the list call fails (or returns nothing),
+  // fall back to /primary so at least the user's own events show.
+  let calendars;
+  try {
+    const all = await listUserCalendars();
+    calendars = all.filter(c => c.selected && !isHolidayCalendar(c));
+    if (calendars.length === 0) {
+      calendars = [{ id: 'primary', summary: 'Primary', primary: true, selected: true }];
+    }
+  } catch (listErr) {
+    console.warn('[Calendar] calendarList fetch failed, falling back to primary:', listErr?.code || listErr?.message);
+    calendars = [{ id: 'primary', summary: 'Primary', primary: true, selected: true }];
+  }
+
+  const token = await ensureCalendarToken();
+
+  const buildUrl = (calId) =>
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`
     + `?timeMin=${encodeURIComponent(timeMin)}`
     + `&timeMax=${encodeURIComponent(timeMax)}`
     + `&singleEvents=true&orderBy=startTime&maxResults=50`;
 
-  const doFetch = (t) => fetch(url, { headers: { Authorization: `Bearer ${t}` } });
-
-  const token = await ensureCalendarToken();
-
-  let res;
-  try {
-    res = await doFetch(token);
-  } catch (networkErr) {
+  // Parallel fetch; each result is { ok, events }. `ok=false` entries are
+  // logged and contribute zero events. Only if NONE succeed do we throw.
+  const results = await Promise.all(calendars.map(async (cal) => {
     try {
-      res = await doFetch(token);
-    } catch (retryErr) {
-      const err = new Error('CALENDAR_NETWORK_ERROR');
-      err.code = 'CALENDAR_NETWORK_ERROR';
-      err.cause = retryErr;
-      throw err;
+      let res = await fetch(buildUrl(cal.id), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) {
+        clearGcalToken();
+        const freshToken = await ensureCalendarToken();
+        res = await fetch(buildUrl(cal.id), { headers: { Authorization: `Bearer ${freshToken}` } });
+      }
+      if (!res.ok) {
+        console.warn(`[Calendar] "${cal.summary}" returned ${res.status}, skipping`);
+        return { ok: false, events: [] };
+      }
+      const data = await res.json();
+      const events = (data.items || []).map(ev => ({
+        id: ev.id,
+        summary: ev.summary,
+        start: ev.start,
+        end: ev.end,
+        location: ev.location,
+        description: ev.description,
+        _calendarId: cal.id,
+        _calendarName: cal.summary,
+      }));
+      return { ok: true, events };
+    } catch (e) {
+      console.warn(`[Calendar] "${cal.summary}" fetch threw:`, e?.message || e);
+      return { ok: false, events: [] };
     }
-  }
+  }));
 
-  if (res.status === 401) {
-    clearGcalToken();
-    const freshToken = await ensureCalendarToken();
-    res = await doFetch(freshToken);
-  }
-
-  if (!res.ok) {
-    const err = new Error(`CALENDAR_FETCH_FAILED_${res.status}`);
-    err.code = `CALENDAR_FETCH_FAILED_${res.status}`;
-    err.status = res.status;
+  if (calendars.length > 0 && !results.some(r => r.ok)) {
+    // Every calendar failed — treat as a systemic error so the UI can retry.
+    const err = new Error('CALENDAR_NETWORK_ERROR');
+    err.code = 'CALENDAR_NETWORK_ERROR';
     throw err;
   }
 
-  const data = await res.json();
-  const events = (data.items || []).map(ev => ({
-    id: ev.id,
-    summary: ev.summary,
-    start: ev.start,
-    end: ev.end,
-    location: ev.location,
-    description: ev.description,
-  }));
+  // Merge, dedupe by event id (an event shared across calendars shows up on
+  // each), sort by start time. Fall back to all-day date sort when a dateTime
+  // isn't present.
+  const seen = new Set();
+  const merged = [];
+  for (const { events } of results) {
+    for (const ev of events) {
+      if (!ev.id || seen.has(ev.id)) continue;
+      seen.add(ev.id);
+      merged.push(ev);
+    }
+  }
+  const startMs = (ev) => ev.start?.dateTime ? Date.parse(ev.start.dateTime)
+                       : ev.start?.date     ? Date.parse(ev.start.date)
+                       :                      Infinity;
+  merged.sort((a, b) => startMs(a) - startMs(b));
 
-  calendarCache = { date: dateKey, events, fetchedAt: now };
-  return events;
+  calendarCache = { date: dateKey, events: merged, fetchedAt: now };
+  return merged;
+}
+
+// Backwards-compat alias; prefer fetchCalendarEvents in new code.
+async function fetchCalendarPrimary(date = new Date()) {
+  return fetchCalendarEvents(date);
+}
+
+// Strip HTML from calendar event text (description / location). HoneyBook
+// and similar tools inject <b>, <br>, <p>, <a>. Rendering attacker-controlled
+// HTML from a calendar we don't own is a stored-XSS risk — plain text with
+// line breaks preserved is the safe choice. Handles:
+//   - <br>, <p>, <div>, <li> → line breaks (list items get a bullet prefix)
+//   - <script>/<style> contents removed entirely
+//   - all other tags stripped
+//   - common + numeric HTML entities decoded
+//   - runs of 3+ blank lines collapsed
+function sanitizeEventDescription(raw) {
+  if (!raw) return '';
+  let s = String(raw);
+  // Remove script/style contents entirely (not just the tags) so inline JS
+  // payloads don't leak through as visible text after the general tag strip.
+  s = s.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+  // Convert block-ish tags to newlines before the general strip so paragraphs
+  // survive as readable text.
+  s = s.replace(/<br\s*\/?>/gi, '\n');
+  s = s.replace(/<\/p\s*>/gi, '\n');
+  s = s.replace(/<p\s*[^>]*>/gi, '');
+  s = s.replace(/<\/div\s*>/gi, '\n');
+  s = s.replace(/<div\s*[^>]*>/gi, '');
+  s = s.replace(/<\/li\s*>/gi, '\n');
+  s = s.replace(/<li\s*[^>]*>/gi, '• ');
+  // Strip any remaining tag (including <a>, <b>, <i>, <span>, etc.).
+  s = s.replace(/<[^>]+>/g, '');
+  // Decode common named entities a browser would otherwise display.
+  const named = {
+    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"',
+    '&#39;': "'", '&apos;': "'", '&nbsp;': ' ',
+  };
+  s = s.replace(/&(?:amp|lt|gt|quot|#39|apos|nbsp);/gi, m => named[m.toLowerCase()] || m);
+  // Decode numeric entities (e.g. &#8217; → curly apostrophe).
+  s = s.replace(/&#(\d+);/g, (_, n) => {
+    const code = parseInt(n, 10);
+    return (code >= 32 && code <= 0x10FFFF) ? String.fromCodePoint(code) : '';
+  });
+  // Collapse excess blank lines and trim ends.
+  return s.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 async function signInWithGoogle() {
@@ -3669,10 +3805,16 @@ function renderCalendarEventRow(ev, { dimmed = false } = {}) {
 
   let expandedPanel = '';
   if (isExpanded) {
-    const loc = ev.location ? `<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">📍 ${escapeTodayText(ev.location)}</div>` : '';
+    // Location and description often arrive as HTML (HoneyBook, etc.). Strip
+    // tags to plain text first, then escape for safe innerHTML insertion.
+    const locClean = sanitizeEventDescription(ev.location);
+    const loc = locClean ? `<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">📍 ${escapeTodayText(locClean)}</div>` : '';
     const descRaw = ev.description || '';
-    const descTrim = descRaw.length > 200 ? descRaw.slice(0, 200).trim() + '…' : descRaw;
+    const descClean = sanitizeEventDescription(descRaw);
+    const descTrim = descClean.length > 200 ? descClean.slice(0, 200).trim() + '…' : descClean;
     const desc = descTrim ? `<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px;white-space:pre-wrap;">${escapeTodayText(descTrim)}</div>` : '';
+    // Meeting-URL regex runs on the RAW description so URLs inside <a href="...">
+    // wrappers are still found — sanitize() would have stripped those <a> tags.
     const joinUrl = extractMeetingUrl(descRaw) || extractMeetingUrl(ev.location);
     const joinBtn = joinUrl
       ? `<a href="${escapeTodayText(joinUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;background:var(--accent3);color:#0a0a0f;text-decoration:none;padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;margin-right:8px;">Join call</a>`
