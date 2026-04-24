@@ -817,6 +817,18 @@
     justify-content: space-between;
     gap: 8px;
   }
+  /* Outside-the-card section header on the Brief tab ("CHIEF OF STAFF · TODAY",
+     "CHIEF OF STAFF · THIS WEEK") — matches .briefing-label's typographic beat
+     but lives in the tab layout rather than inside the card. */
+  .brief-section-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin: 0 0 10px 2px;
+  }
   .briefing-refresh-btn {
     background: transparent;
     border: 1px solid var(--border);
@@ -1162,7 +1174,7 @@
 
 <main style="display:none;">
   <!-- CAPTURE VIEW -->
-  <div class="view active" id="view-capture">
+  <div class="view" id="view-capture">
     <div class="capture-card">
       <div class="capture-label">New Task</div>
       <div class="capture-input-row">
@@ -1276,13 +1288,20 @@
 
   <!-- STATS VIEW -->
   <div class="view" id="view-stats">
-    <div id="briefingCard"></div>
     <div id="statsGrid"></div>
   </div>
 
   <!-- TODAY VIEW -->
   <div class="view" id="view-today">
     <div id="todayContent"></div>
+  </div>
+
+  <!-- BRIEF VIEW -->
+  <div class="view active" id="view-brief">
+    <div class="brief-section-label">Chief of Staff · Today</div>
+    <div id="briefingCard"></div>
+    <div class="brief-section-label" style="margin-top:26px;">Chief of Staff · This Week</div>
+    <div id="horizonBriefingCard"></div>
   </div>
 
   <!-- DRILL DOWN VIEW -->
@@ -1386,13 +1405,17 @@
 
 <!-- NAV BAR -->
 <nav class="nav-bar" style="display:none;">
-  <button class="nav-item active" id="nav-capture" onclick="showView('capture')">
+  <button class="nav-item" id="nav-capture" onclick="showView('capture')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
     Capture
   </button>
   <button class="nav-item" id="nav-today" onclick="showView('today')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="2" fill="currentColor"/></svg>
     Today
+  </button>
+  <button class="nav-item active" id="nav-brief" onclick="showView('brief')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+    Brief
   </button>
   <button class="nav-item" id="nav-stats" onclick="showView('stats')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
@@ -1780,6 +1803,9 @@ async function initApp(user) {
   if (inviteToken) acceptInvite(inviteToken);
   setupRealtime();
   maybeShowAiExplainer();
+  // Brief is the default landing tab (HTML has view-brief as .active). Kick
+  // the renderer so the two briefing cards actually paint on first load.
+  showView('brief');
   
   // Load settings
 
@@ -2142,6 +2168,115 @@ async function fetchCalendarEvents(date = new Date()) {
 // Backwards-compat alias; prefer fetchCalendarEvents in new code.
 async function fetchCalendarPrimary(date = new Date()) {
   return fetchCalendarEvents(date);
+}
+
+// Fetch events across every selected, non-holiday calendar for an arbitrary
+// date range. Returns Event[] (same shape as fetchCalendarEvents) with an
+// added `attendee_count` field so horizon briefing can prioritize meetings
+// with real participants. Used by the horizon briefing (Loop D-2).
+//
+// Has its own 30-min cache slot (calendarRangeCache) keyed by the range so it
+// does not thrash Loop C's single-day calendarCache, which the Today view
+// depends on.
+const GCAL_RANGE_CACHE_TTL_MS = 30 * 60 * 1000;
+let calendarRangeCache = { key: null, events: null, fetchedAt: 0 };
+
+async function fetchCalendarEventsRange(startDate, endDate) {
+  if (!readStoredGcalToken()) return [];
+
+  const startMs = new Date(startDate);
+  startMs.setHours(0, 0, 0, 0);
+  const endMs = new Date(endDate);
+  endMs.setHours(23, 59, 59, 999);
+  const timeMin = startMs.toISOString();
+  const timeMax = endMs.toISOString();
+  const cacheKey = `${timeMin}|${timeMax}`;
+  const now = Date.now();
+  if (calendarRangeCache.key === cacheKey
+      && calendarRangeCache.events
+      && (now - calendarRangeCache.fetchedAt) < GCAL_RANGE_CACHE_TTL_MS) {
+    return calendarRangeCache.events;
+  }
+
+  let calendars;
+  try {
+    const all = await listUserCalendars();
+    calendars = all.filter(c => c.selected && !isHolidayCalendar(c));
+    if (calendars.length === 0) {
+      calendars = [{ id: 'primary', summary: 'Primary', primary: true, selected: true }];
+    }
+  } catch (listErr) {
+    console.warn('[Calendar] range: calendarList failed, falling back to primary:', listErr?.code || listErr?.message);
+    calendars = [{ id: 'primary', summary: 'Primary', primary: true, selected: true }];
+  }
+
+  const token = await ensureCalendarToken();
+
+  const buildUrl = (calId) =>
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`
+    + `?timeMin=${encodeURIComponent(timeMin)}`
+    + `&timeMax=${encodeURIComponent(timeMax)}`
+    + `&singleEvents=true&orderBy=startTime&maxResults=250`;
+
+  const results = await Promise.all(calendars.map(async (cal) => {
+    try {
+      let res = await fetch(buildUrl(cal.id), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) {
+        clearGcalToken();
+        const freshToken = await ensureCalendarToken();
+        res = await fetch(buildUrl(cal.id), { headers: { Authorization: `Bearer ${freshToken}` } });
+      }
+      if (!res.ok) {
+        console.warn(`[Calendar] range "${cal.summary}" returned ${res.status}, skipping`);
+        return { ok: false, events: [] };
+      }
+      const data = await res.json();
+      const events = (data.items || []).map(ev => {
+        // Attendee count excludes the user themselves and declined attendees.
+        const attendeeCount = Array.isArray(ev.attendees)
+          ? ev.attendees.filter(a => !a.self && a.responseStatus !== 'declined').length
+          : 0;
+        return {
+          id: ev.id,
+          summary: ev.summary,
+          start: ev.start,
+          end: ev.end,
+          location: ev.location,
+          description: ev.description,
+          attendee_count: attendeeCount,
+          _calendarId: cal.id,
+          _calendarName: cal.summary,
+        };
+      });
+      return { ok: true, events };
+    } catch (e) {
+      console.warn(`[Calendar] range "${cal.summary}" fetch threw:`, e?.message || e);
+      return { ok: false, events: [] };
+    }
+  }));
+
+  if (calendars.length > 0 && !results.some(r => r.ok)) {
+    const err = new Error('CALENDAR_NETWORK_ERROR');
+    err.code = 'CALENDAR_NETWORK_ERROR';
+    throw err;
+  }
+
+  const seen = new Set();
+  const merged = [];
+  for (const { events } of results) {
+    for (const ev of events) {
+      if (!ev.id || seen.has(ev.id)) continue;
+      seen.add(ev.id);
+      merged.push(ev);
+    }
+  }
+  const evStartMs = (ev) => ev.start?.dateTime ? Date.parse(ev.start.dateTime)
+                         : ev.start?.date     ? Date.parse(ev.start.date)
+                         :                      Infinity;
+  merged.sort((a, b) => evStartMs(a) - evStartMs(b));
+
+  calendarRangeCache = { key: cacheKey, events: merged, fetchedAt: now };
+  return merged;
 }
 
 // Strip HTML from calendar event text (description / location). HoneyBook
@@ -3523,11 +3658,32 @@ async function bulkMarkComplete() {
 const BRIEFING_CACHE_TTL_MS = 60 * 60 * 1000;
 let briefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
 
-// Fingerprint covers task set + completion state, so completing a task on the
-// Today tab invalidates the cache and the next Dashboard open regenerates.
+// Horizon briefing (Loop D-2) — separate cache, longer TTL since the shape of
+// the week changes on the scale of hours, not minutes.
+const HORIZON_BRIEFING_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+let horizonBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+// Module-scope cache for horizon events so composeBriefingContext can stay
+// synchronous (matches the Today briefing's read-from-module-state pattern).
+let horizonCalendarEvents = [];
+
+// Fingerprint scoped to tasks that actually drive the TODAY briefing:
+// overdue, due today, or P1 untimed. Completing an out-of-scope task (e.g.
+// one due next week) does NOT invalidate today's cache — that change is
+// horizon territory. Mirrors the scope used by composeBriefingContext('today').
 function briefingTaskFingerprint() {
   if (!Array.isArray(tasks)) return '';
-  return tasks.map(t => `${t.id}|${t.status || ''}`).sort().join(',');
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  return tasks
+    .filter(t => {
+      if (t.status === 'done') return false;
+      if (t.due_date && t.due_date < todayStr) return true;   // overdue
+      if (t.due_date === todayStr) return true;                // due today
+      if (!t.due_date && t.priority === 'P1') return true;     // P1 untimed
+      return false;
+    })
+    .map(t => `${t.id}|${t.status || ''}|${t.due_date || ''}|${t.priority || ''}`)
+    .sort()
+    .join(',');
 }
 
 // Gather the signals Claude needs. windowType='today' is the only value wired
@@ -3536,7 +3692,86 @@ function briefingTaskFingerprint() {
 function composeBriefingContext(windowType = 'today') {
   const now = new Date();
   const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const today_utc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 
+  if (windowType === 'horizon') {
+    // Horizon window: next 7 days of calendar events, next 14 days of tasks.
+    const HORIZON_EVENT_DAYS = 7;
+    const HORIZON_TASK_DAYS = 14;
+
+    const dayOf = (dateStr) => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return Date.UTC(y, m - 1, d);
+    };
+    const daysFromToday = (dateStr) => Math.round((dayOf(dateStr) - today_utc) / 86400000);
+
+    // Events: exclude all-day holidays (already filtered at calendar list
+    // level), sort chronologically, cap at 20 most significant by signal-
+    // first ordering: events with attendees float above solo blocks, then
+    // chrono order. Cap keeps prompt bounded; 20 is enough to see the shape
+    // of a week without noise.
+    const evs = Array.isArray(horizonCalendarEvents) ? horizonCalendarEvents : [];
+    const horizonEventMapped = evs.map(ev => {
+      const allDay = !!(ev?.start?.date && !ev?.start?.dateTime);
+      const startMs = ev?.start?.dateTime ? Date.parse(ev.start.dateTime)
+                    : ev?.start?.date     ? Date.parse(ev.start.date)
+                    :                       null;
+      const endMs = ev?.end?.dateTime ? Date.parse(ev.end.dateTime) : null;
+      const localDate = startMs ? new Date(startMs).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) : null;
+      return {
+        title: ev.summary || '(untitled)',
+        date: localDate,
+        time: (!allDay && startMs) ? new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null,
+        duration: (!allDay && startMs && endMs) ? formatEventDuration(startMs, endMs) : null,
+        all_day: allDay,
+        days_from_now: localDate ? daysFromToday(localDate) : null,
+        attendee_count: ev.attendee_count || 0,
+      };
+    }).filter(e => e.days_from_now !== null && e.days_from_now >= 0 && e.days_from_now <= HORIZON_EVENT_DAYS);
+
+    const horizon_events = [...horizonEventMapped]
+      .sort((a, b) => {
+        // Primary: attendee-having meetings first (signal). Secondary: chrono.
+        const aRank = a.attendee_count > 0 ? 0 : (a.all_day ? 2 : 1);
+        const bRank = b.attendee_count > 0 ? 0 : (b.all_day ? 2 : 1);
+        if (aRank !== bRank) return aRank - bRank;
+        const ak = (a.days_from_now ?? 0) * 10000 + (a.time ? 0 : 1);
+        const bk = (b.days_from_now ?? 0) * 10000 + (b.time ? 0 : 1);
+        return ak - bk;
+      })
+      .slice(0, 20)
+      // Restore chronological order for the model's consumption — easier for
+      // the LLM to narrate the week in order.
+      .sort((a, b) => (a.days_from_now - b.days_from_now) || ((a.time || '') < (b.time || '') ? -1 : 1));
+
+    const active = Array.isArray(tasks) ? tasks.filter(t => t && t.status !== 'done') : [];
+
+    const upcoming_deadlines = active
+      .filter(t => t.due_date && t.due_date >= todayStr)
+      .map(t => ({
+        title: t.cleaned_task || t.content || '',
+        due_date: t.due_date,
+        days_until_due: daysFromToday(t.due_date),
+        priority: t.priority || 'P3',
+        project: t.project || null,
+        notes: t.notes || null,
+      }))
+      .filter(d => d.days_until_due <= HORIZON_TASK_DAYS)
+      .sort((a, b) => a.days_until_due - b.days_until_due)
+      .slice(0, 12);
+
+    const still_overdue_count = active.filter(t => t.due_date && t.due_date < todayStr).length;
+
+    return {
+      now: now.toISOString(),
+      window: 'horizon',
+      horizon_events,
+      upcoming_deadlines,
+      still_overdue_count,
+    };
+  }
+
+  // Default / 'today' window.
   const evs = Array.isArray(todayCalendarEvents) ? todayCalendarEvents : [];
   const today_events = evs.map(ev => {
     const allDay = !!(ev?.start?.date && !ev?.start?.dateTime);
@@ -3558,7 +3793,6 @@ function composeBriefingContext(windowType = 'today') {
     .map(t => {
       const [y, m, d] = t.due_date.split('-').map(Number);
       const due = Date.UTC(y, m - 1, d);
-      const today_utc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
       const days_overdue = Math.max(1, Math.round((today_utc - due) / 86400000));
       return {
         title: t.cleaned_task || t.content || '',
@@ -3702,6 +3936,164 @@ function refreshBriefing() {
   renderBriefing();
 }
 
+// ─── HORIZON BRIEFING (Loop D-2) ──────────────────────────────
+// Forward-looking 2-3 sentence advisor paragraph about the week ahead.
+// Calibrated to notice the SHAPE of the week (heavy/light days, deadline
+// landing points, prep windows) rather than list what's on the calendar.
+
+// Fingerprint covers tasks whose due_date sits inside the horizon window OR
+// anything overdue (still shapes the week). Changes when a task is added,
+// completed, or has its due_date moved in/out of the window.
+function horizonTaskFingerprint() {
+  if (!Array.isArray(tasks)) return '';
+  const now = new Date();
+  const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const today_utc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const windowEnd = today_utc + 14 * 86400000;
+  return tasks
+    .filter(t => {
+      if (t.status === 'done') return false;
+      if (!t.due_date) return false;
+      const [y, m, d] = t.due_date.split('-').map(Number);
+      const due = Date.UTC(y, m - 1, d);
+      return due < today_utc || due <= windowEnd;
+    })
+    .map(t => `${t.id}|${t.status || ''}|${t.due_date || ''}`)
+    .sort()
+    .join(',');
+}
+
+const HORIZON_BRIEFING_SYSTEM_PROMPT = `You are the user's chief of staff. You know their calendar for the next 7 days and their upcoming task deadlines over the next 2 weeks.
+
+Write a 2-3 sentence forward-looking briefing about the week ahead. Notice the SHAPE of the coming days — which days are heavy versus clear, what deadlines are landing when, what needs prep now for something later. Reference specific days, meetings, and projects by name when it adds signal.
+
+Be the kind of advisor who says "Tuesday is going to be rough, and the Workiva deadline lands Friday — you'll want to start on that Sunday night" rather than listing what's on the calendar.
+
+Do NOT:
+- Use bullet points or lists
+- Repeat what today's briefing already said (today is covered separately)
+- Be performative, cheerleadery, or reassuring
+- Just summarize the calendar — interpret it
+- Exceed 60 words
+
+Write in prose. Write like a trusted advisor looking at the week ahead with the user.
+
+Example outputs to calibrate tone:
+
+"Tuesday and Wednesday get dense — back-to-back SOX reviews plus the Workiva deadline landing Friday. The Salley tax return is still sitting, and May 3's wedding booking needs a Vibo event created before the end of the week. Start the Workiva prep Sunday night or Monday opens up hard."
+
+"Next week is lighter than this one — just the Monday standup and Thursday's 1:1 with Sarah. The NGTF 990 research deadline is May 2, which gives you the weekend plus three clear afternoons. Good stretch to finally close the inbox-triage backlog."
+
+"The week ahead is front-loaded: three Caliber meetings Monday through Wednesday, then it clears. Mia's birthday prep is on the 28th, and the Lennon wedding on May 3 needs a Vibo event before Friday. Worth blocking time Wednesday afternoon for wedding ops before the calendar tightens again."`;
+
+async function loadHorizonCalendar() {
+  // Short-circuit if no token — briefing still runs with empty events.
+  if (!readStoredGcalToken()) {
+    horizonCalendarEvents = [];
+    return;
+  }
+  try {
+    const start = new Date();
+    const end = new Date();
+    end.setDate(end.getDate() + 6);
+    horizonCalendarEvents = await fetchCalendarEventsRange(start, end);
+  } catch (e) {
+    console.warn('[Horizon] calendar fetch failed:', e?.code || e?.message);
+    horizonCalendarEvents = [];
+  }
+}
+
+async function generateHorizonBriefing(ctx) {
+  const apiKey = localStorage.getItem('apiKey') || null;
+  const response = await fetch('/api/process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      apiKey,
+      systemPrompt: HORIZON_BRIEFING_SYSTEM_PROMPT,
+      prompt: 'Here is the context. Write the forward-looking briefing.\n\n' + JSON.stringify(ctx, null, 2),
+      maxTokens: 220,
+      provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude'),
+    }),
+  });
+  if (!response.ok) throw new Error(`Horizon briefing HTTP ${response.status}`);
+  const data = await response.json();
+  const text = data?.content?.[0]?.text;
+  if (!text || typeof text !== 'string') throw new Error('Horizon briefing empty response');
+  return text.trim().replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1').trim();
+}
+
+function renderHorizonBriefingSkeleton(el) {
+  el.innerHTML = `
+    <div class="briefing-card">
+      <div class="briefing-label">
+        <span>🧭 This Week</span>
+        <button class="briefing-refresh-btn" disabled title="Regenerating…" aria-label="Regenerating this week briefing">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+      <div class="briefing-skeleton">
+        <div class="briefing-skeleton-line"></div>
+        <div class="briefing-skeleton-line"></div>
+        <div class="briefing-skeleton-line"></div>
+      </div>
+    </div>`;
+}
+
+function renderHorizonBriefingContent(el, text, { fallback = false } = {}) {
+  const textClass = fallback ? 'briefing-text briefing-fallback' : 'briefing-text';
+  el.innerHTML = `
+    <div class="briefing-card">
+      <div class="briefing-label">
+        <span>🧭 This Week</span>
+        <button class="briefing-refresh-btn" onclick="refreshHorizonBriefing()" title="Regenerate this week briefing" aria-label="Regenerate this week briefing">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+      <div class="${textClass}">${escapeTodayText(text)}</div>
+    </div>`;
+}
+
+async function renderHorizonBriefing() {
+  const el = document.getElementById('horizonBriefingCard');
+  if (!el) return;
+
+  // Load 7-day event window. Own cache (calendarRangeCache, 30 min) so this
+  // doesn't thrash Loop C's single-day calendarCache.
+  try { await loadHorizonCalendar(); } catch (e) { /* briefing still works with [] */ }
+
+  const now = Date.now();
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const fingerprint = `${today}|${horizonTaskFingerprint()}`;
+  const cacheHit = horizonBriefingCache.fingerprint === fingerprint
+    && horizonBriefingCache.text
+    && (now - horizonBriefingCache.ts) < HORIZON_BRIEFING_CACHE_TTL_MS;
+
+  if (cacheHit) {
+    renderHorizonBriefingContent(el, horizonBriefingCache.text);
+    return;
+  }
+
+  renderHorizonBriefingSkeleton(el);
+
+  try {
+    const ctx = composeBriefingContext('horizon');
+    const text = await generateHorizonBriefing(ctx);
+    horizonBriefingCache = { fingerprint, text, ts: Date.now(), windowType: 'horizon' };
+    renderHorizonBriefingContent(el, text);
+  } catch (err) {
+    console.warn('[Horizon] generation failed:', err?.message || err);
+    renderHorizonBriefingContent(el, 'Briefing unavailable — check back in a minute.', { fallback: true });
+  }
+}
+
+function refreshHorizonBriefing() {
+  // Only invalidate horizon state — today briefing is independent.
+  horizonBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+  calendarRangeCache = { key: null, events: null, fetchedAt: 0 };
+  renderHorizonBriefing();
+}
+
 async function renderStats() {
   const el = document.getElementById('statsGrid');
   if (!el) return;
@@ -3834,7 +4226,8 @@ function showView(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`view-${name}`).classList.add('active');
   document.getElementById(`nav-${name}`).classList.add('active');
-  if (name === 'stats') { renderBriefing(); renderStats(); }
+  if (name === 'brief') { renderBriefing(); renderHorizonBriefing(); }
+  if (name === 'stats') renderStats();
   if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderKeywordEditor(); renderLifeAreasEditor(); }
   if (name === 'today') {
     renderToday();
@@ -5243,6 +5636,7 @@ async function completeOnboarding() {
     await loadTasks();
     setupRealtime();
     maybeShowAiExplainer();
+    showView('brief');
     showToast('✨ Welcome to STWRD, ' + name + '!');
     setTimeout(() => showToast('👫 Tip: tap the Partner button to invite your partner!'), 3500);
 
