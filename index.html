@@ -850,18 +850,6 @@
     justify-content: space-between;
     gap: 8px;
   }
-  /* Outside-the-card section header on the Brief tab ("CHIEF OF STAFF · TODAY",
-     "CHIEF OF STAFF · THIS WEEK") — matches .briefing-label's typographic beat
-     but lives in the tab layout rather than inside the card. */
-  .brief-section-label {
-    font-family: 'Syne', sans-serif;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--text2);
-    margin: 0 0 10px 2px;
-  }
   .briefing-refresh-btn {
     background: transparent;
     border: 1px solid var(--border);
@@ -1339,10 +1327,8 @@
       <span class="banner-icon">🔌</span>
       <span class="banner-text">Google Calendar disconnected. <button class="banner-cta" onclick="reconnectGcal()">Reconnect</button></span>
     </div>
-    <div class="brief-section-label">Chief of Staff · Today</div>
     <div id="briefingCard"></div>
-    <div class="brief-section-label" style="margin-top:26px;">Chief of Staff · This Week</div>
-    <div id="horizonBriefingCard"></div>
+    <div id="horizonBriefingCard" style="margin-top:26px;"></div>
   </div>
 
   <!-- DRILL DOWN VIEW -->
@@ -4040,7 +4026,7 @@ function renderBriefingSkeleton(el) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 Chief of Staff</span>
+        <span>🧭 Chief of Staff · Today</span>
         <button class="briefing-refresh-btn" disabled title="Regenerating…" aria-label="Regenerating briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -4058,7 +4044,7 @@ function renderBriefingContent(el, text, { fallback = false } = {}) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 Chief of Staff</span>
+        <span>🧭 Chief of Staff · Today</span>
         <button class="briefing-refresh-btn" onclick="refreshBriefing()" title="Regenerate briefing" aria-label="Regenerate briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -4205,7 +4191,7 @@ function renderHorizonBriefingSkeleton(el) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 This Week</span>
+        <span>🧭 Chief of Staff · This Week</span>
         <button class="briefing-refresh-btn" disabled title="Regenerating…" aria-label="Regenerating this week briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -4223,7 +4209,7 @@ function renderHorizonBriefingContent(el, text, { fallback = false } = {}) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 This Week</span>
+        <span>🧭 Chief of Staff · This Week</span>
         <button class="briefing-refresh-btn" onclick="refreshHorizonBriefing()" title="Regenerate this week briefing" aria-label="Regenerate this week briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
