@@ -1328,6 +1328,7 @@
       <span class="banner-text">Google Calendar disconnected. <button class="banner-cta" onclick="reconnectGcal()">Reconnect</button></span>
     </div>
     <div id="briefingCard"></div>
+    <div id="tomorrowBriefingCard" style="margin-top:26px;"></div>
     <div id="horizonBriefingCard" style="margin-top:26px;"></div>
   </div>
 
@@ -2000,6 +2001,7 @@ async function reconnectGcal() {
   clearCalendarCache();
   calendarRangeCache = { key: null, events: null, fetchedAt: 0 };
   briefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+  tomorrowBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
   horizonBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
   try {
     await initiateGcalReauth({ silent: false });
@@ -3816,11 +3818,12 @@ function relativeDateLabel(targetDateStr, todayDateStr) {
 // earlier loops regenerate under the new context shape + prompt hardening.
 // Bump when the briefing schema or prompt changes in a way that makes old
 // cached text misleading.
-const BRIEFING_VERSION = 'e';
+const BRIEFING_VERSION = 'g';
 
-// Gather the signals Claude needs. windowType accepts 'today' (Loop D) and
-// 'horizon' (Loop D-2). Both branches emit {date, day_name, relative_label}
-// on every date-bearing field so the model doesn't infer day-of-week.
+// Gather the signals Claude needs. windowType accepts 'today' (Loop D),
+// 'tomorrow' (Loop G), and 'horizon' (Loop D-2). All branches emit
+// {date, day_name, relative_label} on every date-bearing field so the
+// model doesn't infer day-of-week.
 function composeBriefingContext(windowType = 'today') {
   const nowDate = new Date();
   // Anchor "today" to Chicago-local calendar date so this works regardless of
@@ -3831,6 +3834,90 @@ function composeBriefingContext(windowType = 'today') {
   const nowIso = nowDate.toISOString();
   const todayDayName = dayNameFromDate(todayStr);
   const nowField = { iso: nowIso, day_name: todayDayName, date: todayStr };
+
+  if (windowType === 'tomorrow') {
+    // Loop G: Tomorrow piggybacks on horizonCalendarEvents (which already
+    // covers a 7-day window) and filters to the single date. No extra fetch.
+    const tomorrow_utc = today_utc + 86400000;
+    const tomorrowStr = new Date(tomorrow_utc).toISOString().slice(0, 10);
+    const tomorrowDayName = dayNameFromDate(tomorrowStr);
+
+    const evs = Array.isArray(horizonCalendarEvents) ? horizonCalendarEvents : [];
+    const tomorrow_events = evs
+      .map(ev => {
+        const allDay = !!(ev?.start?.date && !ev?.start?.dateTime);
+        const startMs = ev?.start?.dateTime ? Date.parse(ev.start.dateTime)
+                      : ev?.start?.date     ? Date.parse(ev.start.date)
+                      :                       null;
+        const endMs = ev?.end?.dateTime ? Date.parse(ev.end.dateTime) : null;
+        const localDate = startMs ? new Date(startMs).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) : null;
+        return {
+          title: ev.summary || '(untitled)',
+          date: localDate,
+          day_name: localDate ? dayNameFromDate(localDate) : null,
+          relative_label: localDate ? relativeDateLabel(localDate, todayStr) : null,
+          time: (!allDay && startMs) ? new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : null,
+          duration: (!allDay && startMs && endMs) ? formatEventDuration(startMs, endMs) : null,
+          all_day: allDay,
+          attendee_count: ev.attendee_count || 0,
+        };
+      })
+      .filter(e => e.date === tomorrowStr)
+      .sort((a, b) => {
+        if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+        return (a.time || '') < (b.time || '') ? -1 : 1;
+      });
+
+    const active = Array.isArray(tasks) ? tasks.filter(t => t && t.status !== 'done') : [];
+
+    const tomorrow_due_tasks = active
+      .filter(t => t.due_date === tomorrowStr)
+      .map(t => ({
+        title: t.cleaned_task || t.content || '',
+        due_date: tomorrowStr,
+        due_day_name: tomorrowDayName,
+        due_relative_label: 'tomorrow',
+        priority: t.priority || 'P3',
+        project: t.project || null,
+        notes: t.notes || null,
+      }))
+      .slice(0, 8);
+
+    // Tasks already overdue today will still be overdue tomorrow — surface
+    // the most urgent few so prep can include "knock out X before bed."
+    const still_overdue_tasks = active
+      .filter(t => t.due_date && t.due_date < todayStr)
+      .map(t => {
+        const [y, m, d] = t.due_date.split('-').map(Number);
+        const due = Date.UTC(y, m - 1, d);
+        const days_overdue_by_tomorrow = Math.max(1, Math.round((tomorrow_utc - due) / 86400000));
+        return {
+          title: t.cleaned_task || t.content || '',
+          days_overdue_by_tomorrow,
+          overdue_since_date: t.due_date,
+          overdue_since_day_name: dayNameFromDate(t.due_date),
+          overdue_relative_label: relativeDateLabel(t.due_date, todayStr),
+          priority: t.priority || 'P3',
+          project: t.project || null,
+        };
+      })
+      .sort((a, b) => b.days_overdue_by_tomorrow - a.days_overdue_by_tomorrow)
+      .slice(0, 5);
+
+    const still_overdue_count = active.filter(t => t.due_date && t.due_date < todayStr).length;
+
+    return {
+      now: nowField,
+      window: 'tomorrow',
+      tomorrow_date: tomorrowStr,
+      tomorrow_day_name: tomorrowDayName,
+      tomorrow_relative_label: 'tomorrow',
+      tomorrow_events,
+      tomorrow_due_tasks,
+      still_overdue_tasks,
+      still_overdue_count,
+    };
+  }
 
   if (windowType === 'horizon') {
     const HORIZON_EVENT_DAYS = 7;
@@ -3980,9 +4067,11 @@ function composeBriefingContext(windowType = 'today') {
   };
 }
 
-const BRIEFING_SYSTEM_PROMPT = `You are the user's chief of staff. You know their calendar and their task list.
+const BRIEFING_SYSTEM_PROMPT = `You are an advisor for someone managing a busy household — work, family, side businesses, and a marriage. You know their calendar and their task list.
 
 Write a 2-3 sentence briefing about their day. Be warm but observational — notice patterns like tasks that have been sitting overdue since a specific date, a stacked morning versus a clearer afternoon, or a light day that opens space for backlog work. Reference specific items by name (people, projects, meetings) when it adds signal.
+
+If shared-calendar events involving family members or a partner are present in the context, reference them by name when relevant — these are part of the household's life, not separate.
 
 Do NOT:
 - When referring to a day or date, use EXACTLY the date, day_name, and relative_label values from the context. Do NOT compute day-of-week yourself. Do NOT invent new date/day pairings. If an event's day_name is "Tuesday" and its date is "2026-04-28", refer to it as "Tuesday 4/28" or "Tuesday the 28th" or "next Tuesday" — never as any other day name.
@@ -3991,8 +4080,9 @@ Do NOT:
 - Summarize everything — pick the 2-3 most important signals
 - Exceed 60 words
 - If today_events is empty, do NOT mention the calendar or any meetings. Focus entirely on tasks. Do not say "your calendar is empty" or "no meetings today" — just write the briefing as if there are no scheduled events to discuss.
+- Refer to yourself as a "chief of staff" or use any executive/corporate framing. Do not use "principal" or similar advisor-to-executive language.
 
-Write in prose. Write like a trusted advisor who actually knows this person's life.
+Write in prose. Write like a trusted friend who actually knows this person's life.
 
 Example outputs to calibrate tone:
 
@@ -4026,7 +4116,7 @@ function renderBriefingSkeleton(el) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 Chief of Staff · Today</span>
+        <span>🧭 Today</span>
         <button class="briefing-refresh-btn" disabled title="Regenerating…" aria-label="Regenerating briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -4044,7 +4134,7 @@ function renderBriefingContent(el, text, { fallback = false } = {}) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 Chief of Staff · Today</span>
+        <span>🧭 Today</span>
         <button class="briefing-refresh-btn" onclick="refreshBriefing()" title="Regenerate briefing" aria-label="Regenerate briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -4092,6 +4182,144 @@ function refreshBriefing() {
   renderBriefing();
 }
 
+// ─── TOMORROW BRIEFING (Loop G) ───────────────────────────────
+// 24-hour-out prep card. Sits between Today and This Week. Cognitive job
+// is "what do I need to walk into ready" — the briefing read at night.
+// Piggybacks on horizonCalendarEvents (already a 7-day fetch) so no extra
+// calendar call is needed.
+const TOMORROW_BRIEFING_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
+let tomorrowBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+
+// Fingerprint covers tasks due tomorrow plus anything already overdue
+// (still relevant for prep). Today's date is included so the cache flips
+// at the Chicago midnight boundary along with "tomorrow" itself.
+function tomorrowTaskFingerprint() {
+  if (!Array.isArray(tasks)) return '';
+  const nowDate = new Date();
+  const todayStr = nowDate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const tomorrow_utc = Date.UTC(ty, tm - 1, td) + 86400000;
+  const tomorrowStr = new Date(tomorrow_utc).toISOString().slice(0, 10);
+  return tasks
+    .filter(t => {
+      if (t.status === 'done') return false;
+      if (t.due_date === tomorrowStr) return true;
+      if (t.due_date && t.due_date < todayStr) return true;
+      return false;
+    })
+    .map(t => `${t.id}|${t.status || ''}|${t.due_date || ''}|${t.priority || ''}`)
+    .sort()
+    .join(',');
+}
+
+const TOMORROW_BRIEFING_SYSTEM_PROMPT = `You are an advisor for someone managing a busy household — work, family, side businesses, and a marriage. You know their calendar for tomorrow and the tasks they're walking into.
+
+Write a 2-3 sentence briefing about TOMORROW. The cognitive job is preparation: what does the user need to sleep on, prep tonight, or walk into ready? Reference specific meetings, deadlines, and people by name. If shared-calendar events with Mia or family are present, name them naturally — these are part of the household's life, not separate.
+
+Be warm but observational. Notice the SHAPE of tomorrow — heavy morning, clear afternoon, single anchor event, etc. Pick the 2-3 most important signals.
+
+Use EXACTLY the date, day_name, and relative_label values from the context. Do NOT compute day-of-week yourself.
+
+Do NOT:
+- Use bullet points or lists
+- Be performative, cheerleadery, or use phrases like "you've got this"
+- Refer to yourself as a "chief of staff" or use any executive/corporate framing
+- Use "principal" or similar advisor-to-executive language
+- Exceed 60 words
+- Mention an empty calendar if tomorrow_events is empty — just focus on tasks
+
+Write in prose. Write like a friend who knows your life and is helping you think about tomorrow.`;
+
+async function generateTomorrowBriefing(ctx) {
+  const apiKey = localStorage.getItem('apiKey') || null;
+  const response = await fetch('/api/process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      apiKey,
+      systemPrompt: TOMORROW_BRIEFING_SYSTEM_PROMPT,
+      prompt: 'Here is the context. Write the briefing about tomorrow.\n\n' + JSON.stringify(ctx, null, 2),
+      maxTokens: 220,
+      provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude'),
+    }),
+  });
+  if (!response.ok) throw new Error(`Tomorrow briefing HTTP ${response.status}`);
+  const data = await response.json();
+  const text = data?.content?.[0]?.text;
+  if (!text || typeof text !== 'string') throw new Error('Tomorrow briefing empty response');
+  return text.trim().replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1').trim();
+}
+
+function renderTomorrowBriefingSkeleton(el) {
+  el.innerHTML = `
+    <div class="briefing-card">
+      <div class="briefing-label">
+        <span>🧭 Tomorrow</span>
+        <button class="briefing-refresh-btn" disabled title="Regenerating…" aria-label="Regenerating tomorrow briefing">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+      <div class="briefing-skeleton">
+        <div class="briefing-skeleton-line"></div>
+        <div class="briefing-skeleton-line"></div>
+        <div class="briefing-skeleton-line"></div>
+      </div>
+    </div>`;
+}
+
+function renderTomorrowBriefingContent(el, text, { fallback = false } = {}) {
+  const textClass = fallback ? 'briefing-text briefing-fallback' : 'briefing-text';
+  el.innerHTML = `
+    <div class="briefing-card">
+      <div class="briefing-label">
+        <span>🧭 Tomorrow</span>
+        <button class="briefing-refresh-btn" onclick="refreshTomorrowBriefing()" title="Regenerate tomorrow briefing" aria-label="Regenerate tomorrow briefing">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+      <div class="${textClass}">${escapeTodayText(text)}</div>
+    </div>`;
+}
+
+async function renderTomorrowBriefing() {
+  const el = document.getElementById('tomorrowBriefingCard');
+  if (!el) return;
+
+  // Tomorrow piggybacks on the 7-day horizon fetch — this is a no-op when
+  // renderHorizonBriefing already warmed it on the same render pass.
+  try { await loadHorizonCalendar(); } catch (e) { /* still works with [] */ }
+  updateCalendarReauthBanner();
+
+  const now = Date.now();
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const fingerprint = `${today}|${BRIEFING_VERSION}|${tomorrowTaskFingerprint()}`;
+  const cacheHit = tomorrowBriefingCache.fingerprint === fingerprint
+    && tomorrowBriefingCache.text
+    && (now - tomorrowBriefingCache.ts) < TOMORROW_BRIEFING_CACHE_TTL_MS;
+
+  if (cacheHit) {
+    renderTomorrowBriefingContent(el, tomorrowBriefingCache.text);
+    return;
+  }
+
+  renderTomorrowBriefingSkeleton(el);
+
+  try {
+    const ctx = composeBriefingContext('tomorrow');
+    const text = await generateTomorrowBriefing(ctx);
+    tomorrowBriefingCache = { fingerprint, text, ts: Date.now(), windowType: 'tomorrow' };
+    renderTomorrowBriefingContent(el, text);
+  } catch (err) {
+    console.warn('[Tomorrow] generation failed:', err?.message || err);
+    renderTomorrowBriefingContent(el, 'Briefing unavailable — check back in a minute.', { fallback: true });
+  }
+}
+
+function refreshTomorrowBriefing() {
+  tomorrowBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+  renderTomorrowBriefing();
+}
+
 // ─── HORIZON BRIEFING (Loop D-2) ──────────────────────────────
 // Forward-looking 2-3 sentence advisor paragraph about the week ahead.
 // Calibrated to notice the SHAPE of the week (heavy/light days, deadline
@@ -4119,9 +4347,11 @@ function horizonTaskFingerprint() {
     .join(',');
 }
 
-const HORIZON_BRIEFING_SYSTEM_PROMPT = `You are the user's chief of staff. You know their calendar for the next 7 days and their upcoming task deadlines over the next 2 weeks.
+const HORIZON_BRIEFING_SYSTEM_PROMPT = `You are an advisor for someone managing a busy household — work, family, side businesses, and a marriage. You know their calendar for the next 7 days and their upcoming task deadlines over the next 2 weeks.
 
 Write a 2-3 sentence forward-looking briefing about the week ahead. Notice the SHAPE of the coming days — which days are heavy versus clear, what deadlines are landing when, what needs prep now for something later. Reference specific days, meetings, and projects by name when it adds signal.
+
+If shared-calendar events involving family members or a partner are present in the context, reference them by name when relevant — these are part of the household's life, not separate.
 
 Be the kind of advisor who says "Tuesday is going to be rough, and the Workiva deadline lands Friday — you'll want to start on that Sunday night" rather than listing what's on the calendar.
 
@@ -4133,8 +4363,9 @@ Do NOT:
 - Just summarize the calendar — interpret it
 - Exceed 60 words
 - If horizon_events is empty, do NOT mention the calendar or any meetings. Focus entirely on tasks. Do not say "your calendar is empty" or "no meetings today" — just write the briefing as if there are no scheduled events to discuss.
+- Refer to yourself as a "chief of staff" or use any executive/corporate framing. Do not use "principal" or similar advisor-to-executive language.
 
-Write in prose. Write like a trusted advisor looking at the week ahead with the user.
+Write in prose. Write like a trusted friend looking at the week ahead with the user.
 
 Example outputs to calibrate tone:
 
@@ -4191,7 +4422,7 @@ function renderHorizonBriefingSkeleton(el) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 Chief of Staff · This Week</span>
+        <span>🧭 This Week</span>
         <button class="briefing-refresh-btn" disabled title="Regenerating…" aria-label="Regenerating this week briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -4209,7 +4440,7 @@ function renderHorizonBriefingContent(el, text, { fallback = false } = {}) {
   el.innerHTML = `
     <div class="briefing-card">
       <div class="briefing-label">
-        <span>🧭 Chief of Staff · This Week</span>
+        <span>🧭 This Week</span>
         <button class="briefing-refresh-btn" onclick="refreshHorizonBriefing()" title="Regenerate this week briefing" aria-label="Regenerate this week briefing">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -4391,7 +4622,7 @@ function showView(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`view-${name}`).classList.add('active');
   document.getElementById(`nav-${name}`).classList.add('active');
-  if (name === 'brief') { renderBriefing(); renderHorizonBriefing(); }
+  if (name === 'brief') { renderBriefing(); renderTomorrowBriefing(); renderHorizonBriefing(); }
   if (name === 'stats') renderStats();
   if (name === 'settings') { loadHatEditor(); loadDigestSettings(); renderKeywordEditor(); renderLifeAreasEditor(); }
   if (name === 'today') {
