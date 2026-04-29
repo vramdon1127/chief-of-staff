@@ -442,11 +442,7 @@
     letter-spacing: 0.3px;
   }
 
-  /* PROJECT TAGS */
-  .tag-project-gne { background: rgba(244,114,182,0.15); color: var(--gne); }
-  .tag-project-caliber { background: rgba(96,165,250,0.15); color: var(--caliber); }
-  .tag-project-personal { background: rgba(167,139,250,0.15); color: var(--personal); }
-  .tag-project-servants { background: rgba(251,146,60,0.15); color: var(--servents); }
+  /* PROJECT TAGS render via inline styles from projectColor() — no static classes. */
 
   /* CATEGORY TAGS */
   .tag-cat-ai-complete { background: rgba(16,185,129,0.15); color: var(--ai-complete); }
@@ -2518,13 +2514,6 @@ async function sbFetch(path, method = 'GET', body = null) {
 }
 
 // ─── USER PROJECTS ─────────────────────────────────────────────
-const DEFAULT_PROJECTS = [
-  { name: 'Work', icon: '💼', color: '#60a5fa' },
-  { name: 'Family', icon: '🏠', color: '#22d3ee' },
-  { name: 'Health', icon: '💪', color: '#fb923c' },
-  { name: 'Personal', icon: '✨', color: '#a78bfa' },
-];
-
 async function loadUserHats() {
   const badColors = new Set(['#ef4444','#f59e0b','#fbbf24','#10b981','#34d399','#fb923c','#f97316']);
   const genericEmojis = new Set(['🚀','📁','💡','⚡','⭐','🌟','🔥','🎯','📌','🗂️','📂','🗃️','🏡','🏠']);
@@ -2561,10 +2550,11 @@ async function loadUserHats() {
         }
       }, 100);
     } else {
-      userHats = HATS.map(p => ({ name: p.name, icon: p.icon, color: p.color }));
+      userHats = [];
     }
   } catch(e) {
-    userHats = HATS.map(p => ({ name: p.name, icon: p.icon, color: p.color }));
+    console.error('loadUserHats failed:', e);
+    userHats = [];
   }
 }
 
@@ -3104,35 +3094,14 @@ async function removeTask(taskId) {
 }
 
 // ─── RENDER ───────────────────────────────────────────────────
-const HATS = [
-  { name: 'GNE', icon: '🎧', color: 'var(--gne)' },
-  { name: 'Caliber', icon: '🔧', color: 'var(--caliber)' },
-  { name: 'Personal', icon: '✨', color: 'var(--personal)' },
-  { name: 'ServeAnts', icon: '📊', color: 'var(--serveants)' },
-  { name: 'Family', icon: '👨‍👩‍👧', color: 'var(--family)' },
-];
-// PROJECTS alias for backward compatibility
-const PROJECTS = HATS;
-
 // Color lookup for a task's project. Reads the per-user color stored on
-// userHats[] (set during onboarding's assignHatPersonality), so every user
-// sees their own palette — not just the hardcoded Vijay defaults.
-// Falls back to the legacy built-in palette for default project names,
-// then to accent-purple for unknown projects. Safe when userHats is
-// undefined (pre-load or partner view without loaded hats).
-const LEGACY_PROJECT_COLORS = {
-  GNE: 'var(--gne)',
-  Caliber: 'var(--caliber)',
-  Personal: 'var(--personal)',
-  ServeAnts: 'var(--servents)',
-  Family: 'var(--family)',
-};
+// userHats[] (set during onboarding's assignHatPersonality). Falls back to
+// accent-purple for unknown projects (e.g. tasks tagged with a deleted hat).
 function projectColor(name) {
   if (!name) return 'var(--accent)';
   const hats = Array.isArray(userHats) ? userHats : [];
   const hit = hats.find(h => h?.name === name);
-  if (hit?.color) return hit.color;
-  return LEGACY_PROJECT_COLORS[name] || 'var(--accent)';
+  return hit?.color || 'var(--accent)';
 }
 
 // Priority sort: completed sink to bottom, then P1→P4, then null/unknown.
@@ -3397,8 +3366,7 @@ let lpStartX = 0;
 let lpStartY = 0;
 
 function populateHatSelectors() {
-  const hats = userHats.length > 0 ? userHats : HATS;
-  const options = hats.map(p => `<option value="${p.name}">${p.icon} ${p.name}</option>`).join('');
+  const options = userHats.map(p => `<option value="${p.name}">${p.icon} ${p.name}</option>`).join('');
   const hatSelect = document.getElementById('hatSelect');
   const editHat = document.getElementById('editHat');
   if (hatSelect) hatSelect.innerHTML = options;
@@ -3415,8 +3383,18 @@ function renderTasks() {
 function renderHatBuckets() {
   const el = document.getElementById('hatBuckets');
   if (!el) return;
-  const hatsToRender = userHats.length > 0 ? userHats : HATS;
-  el.innerHTML = hatsToRender.map(p => {
+  if (userHats.length === 0) {
+    el.innerHTML = `
+      <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;">Projects</div>
+      <div style="color:var(--text2);font-size:13px;margin-bottom:20px;">The hats you wear — work, family, side hustles, the things that generate tasks.</div>
+      <div style="background:var(--surface);border:1px dashed var(--border);border-radius:18px;padding:32px 20px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:8px;">🎩</div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px;">No projects yet</div>
+        <div style="color:var(--text2);font-size:13px;line-height:1.5;">Projects organize your tasks by life area. You'll be able to add one here soon.</div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = userHats.map(p => {
     const count = tasks.filter(t => t.project === p.name).length;
     const p1count = tasks.filter(t => t.project === p.name && t.priority === 'P1').length;
     return `
@@ -3452,7 +3430,7 @@ function renderHatBuckets() {
 function openHat(name) {
   currentHat = name;
   currentHatFilter = 'all';
-  const proj = userHats.find(p => p.name === name) || PROJECTS.find(p => p.name === name) || { name, icon: '📋' };
+  const proj = userHats.find(p => p.name === name) || { name, icon: '📋' };
   document.getElementById('hatBuckets').style.display = 'none';
   document.getElementById('hatDetail').style.display = 'block';
 
@@ -3641,7 +3619,7 @@ function copySelectedTasks() {
 
 function openBulkMoveSheet() {
   if (selectedTaskIds.size === 0) return;
-  const hats = (userHats.length > 0 ? userHats : HATS).filter(h => h.name !== currentHat);
+  const hats = userHats.filter(h => h.name !== currentHat);
   const subtitle = document.getElementById('bulkMoveSubtitle');
   const list = document.getElementById('bulkMoveList');
   const count = selectedTaskIds.size;
