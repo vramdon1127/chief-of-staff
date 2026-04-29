@@ -1507,6 +1507,26 @@
   </div>
 </div>
 
+<!-- NEW PROJECT MODAL -->
+<div class="modal-overlay" id="newProjectModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-title">🎩 New Project</div>
+    <div class="modal-sub">Projects organize your tasks by life area — work, family, side hustles.</div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">NAME</label>
+      <input id="newProjectName" type="text" maxlength="60" placeholder="e.g. Side Hustle" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;">ICON (optional)</label>
+      <input id="newProjectIcon" type="text" maxlength="12" placeholder="📋" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn primary" id="newProjectSubmitBtn" onclick="submitNewProject()">Create Project</button>
+      <button class="modal-btn secondary" onclick="closeNewProjectModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- AI RESULT MODAL -->
 <div class="modal-overlay" id="aiModal" style="display:none;">
   <div class="modal" style="max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
@@ -3384,15 +3404,18 @@ function renderTasks() {
 function renderHatBuckets() {
   const el = document.getElementById('hatBuckets');
   if (!el) return;
+  const ctaButton = `
+    <button onclick="openNewProjectModal()" style="width:100%;padding:14px;border-radius:14px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;margin-top:4px;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ New Project</button>`;
   if (userHats.length === 0) {
     el.innerHTML = `
       <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;">Projects</div>
       <div style="color:var(--text2);font-size:13px;margin-bottom:20px;">The hats you wear — work, family, side hustles, the things that generate tasks.</div>
-      <div style="background:var(--surface);border:1px dashed var(--border);border-radius:18px;padding:32px 20px;text-align:center;">
+      <div style="background:var(--surface);border:1px dashed var(--border);border-radius:18px;padding:32px 20px;text-align:center;margin-bottom:12px;">
         <div style="font-size:32px;margin-bottom:8px;">🎩</div>
         <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px;">No projects yet</div>
-        <div style="color:var(--text2);font-size:13px;line-height:1.5;">Projects organize your tasks by life area. You'll be able to add one here soon.</div>
-      </div>`;
+        <div style="color:var(--text2);font-size:13px;line-height:1.5;">Projects organize your tasks by life area. Create your first one to get started.</div>
+      </div>
+      ${ctaButton}`;
     return;
   }
   el.innerHTML = userHats.map(p => {
@@ -3425,7 +3448,7 @@ function renderHatBuckets() {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + ctaButton;
 }
 
 function openHat(name) {
@@ -3469,6 +3492,60 @@ function closeHat() {
   if (headerHatNav) headerHatNav.style.display = 'none';
 
   renderHatBuckets();
+}
+
+function openNewProjectModal() {
+  document.getElementById('newProjectName').value = '';
+  document.getElementById('newProjectIcon').value = '';
+  const btn = document.getElementById('newProjectSubmitBtn');
+  btn.disabled = false;
+  btn.textContent = 'Create Project';
+  document.getElementById('newProjectModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('newProjectName').focus(), 50);
+}
+
+function closeNewProjectModal() {
+  document.getElementById('newProjectModal').style.display = 'none';
+}
+
+async function submitNewProject() {
+  const name = document.getElementById('newProjectName').value.trim();
+  const iconInput = document.getElementById('newProjectIcon').value.trim();
+  if (!name) {
+    showToast('⚠️ Project name is required');
+    return;
+  }
+  const dupe = userHats.find(h => h.name.toLowerCase().trim() === name.toLowerCase());
+  if (dupe) {
+    showToast(`❌ You already have a project named '${dupe.name}'.`);
+    return;
+  }
+  const btn = document.getElementById('newProjectSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  const payload = {
+    user_id: currentUserId,
+    name,
+    icon: iconInput || DEFAULT_HAT_ICON,
+    color: '#7c6fef',
+    sort_order: userHats.length,
+  };
+  try {
+    const data = await sbFetch('projects', 'POST', payload);
+    const inserted = Array.isArray(data) ? data[0] : data;
+    if (!inserted || !inserted.name) throw new Error('Insert returned no row');
+    userHats.push(inserted);
+    populateHatSelectors();
+    renderHatBuckets();
+    closeNewProjectModal();
+    openHat(inserted.name);
+    showToast(`✓ Project '${inserted.name}' created`);
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Create Project';
+    showToast('❌ Could not create project: ' + (e.message || 'unknown error'));
+    console.error('submitNewProject failed:', e);
+  }
 }
 
 function setHatFilter(filter, btn) {
