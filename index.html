@@ -1600,6 +1600,7 @@ let currentUser = 'Me';
 let currentUserId = null;
 let currentUserProfile = null;
 let userHats = [];
+const DEFAULT_HAT_ICON = '📋';
 let userLifeCategories = [];
 let recognition = null;
 let isRecording = false;
@@ -3430,7 +3431,7 @@ function renderHatBuckets() {
 function openHat(name) {
   currentHat = name;
   currentHatFilter = 'all';
-  const proj = userHats.find(p => p.name === name) || { name, icon: '📋' };
+  const proj = userHats.find(p => p.name === name) || { name, icon: DEFAULT_HAT_ICON };
   document.getElementById('hatBuckets').style.display = 'none';
   document.getElementById('hatDetail').style.display = 'block';
 
