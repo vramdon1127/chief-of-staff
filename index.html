@@ -3435,7 +3435,10 @@ function isOrphanTask(t) {
 function renderHatBuckets() {
   const el = document.getElementById('hatBuckets');
   if (!el) return;
-  const ctaButton = `
+  // Suppress "+ New Project" CTA in partner view — INSERT RLS is strict
+  // (only own rows), so creating a project while viewing partner would
+  // silently land it on YOUR account anyway. Hide the affordance entirely.
+  const ctaButton = viewingPartner ? '' : `
     <button onclick="openNewProjectModal()" style="width:100%;padding:14px;border-radius:14px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;margin-top:4px;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">+ New Project</button>`;
   const orphanCount = tasks.filter(isOrphanTask).length;
   const orphanP1 = tasks.filter(t => isOrphanTask(t) && t.priority === 'P1').length;
@@ -3499,6 +3502,22 @@ function renderHatBuckets() {
   }).join('') + unfiledBucket + ctaButton;
 }
 
+// Capture card + AI explainer visibility is a function of two pieces of
+// state: viewingPartner (read-only mode hides write affordances) and
+// currentHat (in-detail-view also hides them). Centralized so toggle and
+// hat enter/leave both stay coherent.
+function applyPartnerViewVisibility() {
+  const captureCard = document.querySelector('.capture-card');
+  const explainer = document.getElementById('aiExplainerCard');
+  const inHatDetail = !!currentHat;
+  const showCapture = !viewingPartner && !inHatDetail;
+  if (captureCard) captureCard.style.display = showCapture ? 'block' : 'none';
+  if (explainer) {
+    const dismissed = !!localStorage.getItem('aiExplainerDismissed');
+    explainer.style.display = (showCapture && !dismissed) ? 'block' : 'none';
+  }
+}
+
 function openHat(name) {
   currentHat = name;
   currentHatFilter = 'all';
@@ -3508,10 +3527,8 @@ function openHat(name) {
   document.getElementById('hatBuckets').style.display = 'none';
   document.getElementById('hatDetail').style.display = 'block';
 
-  // Hide capture card and explainer
-  document.querySelector('.capture-card').style.display = 'none';
-  const explainer = document.getElementById('aiExplainerCard');
-  if (explainer) explainer.style.display = 'none';
+  // Hide capture card and explainer (in-detail-view; respects viewingPartner too)
+  applyPartnerViewVisibility();
 
   // Swap header to hat mode
   document.querySelector('.logo').style.display = 'none';
@@ -3519,7 +3536,9 @@ function openHat(name) {
   const headerHatNav = document.getElementById('headerHatNav');
   if (headerHatNav) headerHatNav.style.display = 'flex';
   const deleteBtn = document.getElementById('hatDeleteBtn');
-  if (deleteBtn) deleteBtn.style.display = name === UNFILED_HAT_NAME ? 'none' : 'flex';
+  // Hide trash for Unfiled (synthetic bucket, no real row to delete) AND when
+  // viewing partner (read-only mode — RLS would block the DELETE anyway).
+  if (deleteBtn) deleteBtn.style.display = (name === UNFILED_HAT_NAME || viewingPartner) ? 'none' : 'flex';
 
   renderHatTasks();
 }
@@ -3530,13 +3549,8 @@ function closeHat() {
   document.getElementById('hatDetail').style.display = 'none';
   document.getElementById('hatBuckets').style.display = 'block';
 
-  // Restore capture card
-  document.querySelector('.capture-card').style.display = 'block';
-  // Restore explainer if not dismissed
-  if (!localStorage.getItem('aiExplainerDismissed')) {
-    const explainer = document.getElementById('aiExplainerCard');
-    if (explainer) explainer.style.display = 'block';
-  }
+  // Restore capture card + explainer (gated on !viewingPartner)
+  applyPartnerViewVisibility();
 
   // Restore header
   document.querySelector('.logo').style.display = '';
@@ -3702,6 +3716,7 @@ function renderHatTasks() {
 
 function lpStart(e, taskId) {
   if (selectionMode) return; // Already in selection mode, ignore long-press
+  if (viewingPartner) return; // Read-only mode — bulk-move would write under wrong scope
   const p = e.touches ? e.touches[0] : e;
   lpStartX = p.clientX; lpStartY = p.clientY;
   if (lpTimer) clearTimeout(lpTimer);
@@ -6733,6 +6748,32 @@ async function switchView(mode) {
   const partnerBtn = document.getElementById('panelPartnerBtn');
   const indicator = document.getElementById('viewIndicator');
 
+  // State hygiene (runs in both directions, before any data swap):
+  // 1. If user is inside a hat detail view, exit it. The currentHat may not
+  //    exist in the other user's userHats — staying inside would render an
+  //    empty/stale detail.
+  // 2. If user is in bulk-selection mode, exit it. selectedTaskIds reference
+  //    rows from the about-to-be-replaced tasks array.
+  // 3. Bust briefing caches so the next Brief tab visit refetches with the
+  //    right user_id context (mirrors the reconnectGcal pattern).
+  if (currentHat) {
+    if (selectionMode) exitSelectionMode();
+    currentHat = null;
+    const detail = document.getElementById('hatDetail');
+    const buckets = document.getElementById('hatBuckets');
+    const logo = document.querySelector('.logo');
+    const hatNav = document.getElementById('headerHatNav');
+    if (detail) detail.style.display = 'none';
+    if (buckets) buckets.style.display = 'block';
+    if (logo) logo.style.display = '';
+    if (hatNav) hatNav.style.display = 'none';
+  } else if (selectionMode) {
+    exitSelectionMode();
+  }
+  briefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+  tomorrowBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+  horizonBriefingCache = { fingerprint: null, text: null, ts: 0, windowType: null };
+
   if (mode === 'partner' && partnerData) {
     viewingPartner = true;
     myTasks = [...tasks];
@@ -6747,6 +6788,7 @@ async function switchView(mode) {
     if (myBtn) { myBtn.style.borderColor = 'var(--border)'; myBtn.style.background = 'transparent'; myBtn.style.color = 'var(--text2)'; }
     if (partnerBtn) { partnerBtn.style.borderColor = 'var(--accent2)'; partnerBtn.style.background = 'rgba(244,114,182,0.15)'; partnerBtn.style.color = 'var(--accent2)'; }
     if (indicator) indicator.textContent = `Viewing ${partnerData.name}'s tasks and life score`;
+    applyPartnerViewVisibility();
     renderTasks();
     togglePartnerPanel();
     showToast(`👀 Viewing ${partnerData.name}'s world`);
@@ -6757,6 +6799,7 @@ async function switchView(mode) {
     if (myBtn) { myBtn.style.borderColor = 'var(--accent)'; myBtn.style.background = 'rgba(124,111,239,0.15)'; myBtn.style.color = 'var(--accent)'; }
     if (partnerBtn) { partnerBtn.style.borderColor = 'var(--border)'; partnerBtn.style.background = 'transparent'; partnerBtn.style.color = 'var(--text2)'; }
     if (indicator) indicator.textContent = 'Viewing your own tasks and life score';
+    applyPartnerViewVisibility();
     renderTasks();
     togglePartnerPanel();
     showToast('🏠 Back to your world');
