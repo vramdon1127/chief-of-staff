@@ -101,12 +101,14 @@ export default async function handler(req, res) {
 // Helper: send digest to a single user
 async function sendDigestToUser(profile, resendKey) {
     const toEmail = profile.digest_email;
-    const anthropicKey = profile.anthropic_key;
+    // Anthropic key: prefer per-user BYOK, fall back to env. Mirrors the
+    // /api/process resolution pattern so non-BYOK beta users still get digests.
+    const anthropicKey = profile.anthropic_key || process.env.ANTHROPIC_API_KEY;
     const settingsMap = { digest_email: toEmail, anthropic_key: anthropicKey };
 
     if (!toEmail || !anthropicKey || !resendKey) {
-      return res.status(400).json({ 
-        error: 'Missing config', 
+      return res.status(400).json({
+        error: 'Missing Anthropic key (no BYOK on profile and no ANTHROPIC_API_KEY in env)',
         missing: { toEmail: !toEmail, anthropicKey: !anthropicKey, resendKey: !resendKey }
       });
     }
