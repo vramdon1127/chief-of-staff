@@ -6827,6 +6827,9 @@ async function switchView(mode) {
     if (indicator) indicator.textContent = `Viewing ${partnerData.name}'s tasks and life score`;
     applyPartnerViewVisibility();
     applyPartnerBanner();
+    renderBriefing();
+    renderTomorrowBriefing();
+    renderHorizonBriefing();
     renderTasks();
     togglePartnerPanel();
     showToast(`👀 Viewing ${partnerData.name}'s world`);
@@ -6839,6 +6842,9 @@ async function switchView(mode) {
     if (indicator) indicator.textContent = 'Viewing your own tasks and life score';
     applyPartnerViewVisibility();
     applyPartnerBanner();
+    renderBriefing();
+    renderTomorrowBriefing();
+    renderHorizonBriefing();
     renderTasks();
     togglePartnerPanel();
     showToast('🏠 Back to your world');
