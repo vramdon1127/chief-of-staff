@@ -1712,7 +1712,6 @@ window.addEventListener('load', async () => {
             console.error('[STWRD] Token exchange failed:', tokenRes.status, errText);
           } else {
             const tokenData = await tokenRes.json();
-            console.log('[STWRD-DIAG] tokenData keys:', Object.keys(tokenData));
             console.log('[STWRD] Token exchange succeeded, user:', tokenData.user?.id);
 
             // Capture Google's access token from the PKCE response body. This is
