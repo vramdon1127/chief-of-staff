@@ -4052,6 +4052,14 @@ function composeBriefingContext(windowType = 'today') {
   const todayDayName = dayNameFromDate(todayStr);
   const nowField = { iso: nowIso, day_name: todayDayName, date: todayStr };
 
+  // S2.5 — whose day is this? When viewingPartner is true the global tasks
+  // array has been swapped to partner data (I-2), so the brief is about them.
+  // Defensive fallbacks keep the preface grammatical even if globals are
+  // unset ('the user' / 'their partner' both read naturally in prose).
+  const subject_name = viewingPartner
+    ? (partnerData?.name || 'their partner')
+    : (currentUser && currentUser !== 'Me' ? currentUser : 'the user');
+
   if (windowType === 'tomorrow') {
     // Loop G: Tomorrow piggybacks on horizonCalendarEvents (which already
     // covers a 7-day window) and filters to the single date. No extra fetch.
@@ -4125,6 +4133,7 @@ function composeBriefingContext(windowType = 'today') {
 
     return {
       now: nowField,
+      subject_name,
       window: 'tomorrow',
       tomorrow_date: tomorrowStr,
       tomorrow_day_name: tomorrowDayName,
@@ -4205,6 +4214,7 @@ function composeBriefingContext(windowType = 'today') {
 
     return {
       now: nowField,
+      subject_name,
       window: 'horizon',
       horizon_events,
       upcoming_deadlines,
@@ -4277,6 +4287,7 @@ function composeBriefingContext(windowType = 'today') {
 
   return {
     now: nowField,
+    subject_name,
     window: windowType,
     today_events,
     overdue_tasks,
@@ -4318,7 +4329,7 @@ async function generateBriefing(ctx) {
     body: JSON.stringify({
       apiKey,
       systemPrompt: BRIEFING_SYSTEM_PROMPT,
-      prompt: 'Here is the context. Write the briefing.\n\n' + JSON.stringify(ctx, null, 2),
+      prompt: `Write the briefing for ${ctx.subject_name}'s day. Here is the context.\n\n` + JSON.stringify(ctx, null, 2),
       maxTokens: 220,
       provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude'),
     }),
@@ -4461,7 +4472,7 @@ async function generateTomorrowBriefing(ctx) {
     body: JSON.stringify({
       apiKey,
       systemPrompt: TOMORROW_BRIEFING_SYSTEM_PROMPT,
-      prompt: 'Here is the context. Write the briefing about tomorrow.\n\n' + JSON.stringify(ctx, null, 2),
+      prompt: `Write the briefing about ${ctx.subject_name}'s tomorrow. Here is the context.\n\n` + JSON.stringify(ctx, null, 2),
       maxTokens: 220,
       provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude'),
     }),
@@ -4629,7 +4640,7 @@ async function generateHorizonBriefing(ctx) {
     body: JSON.stringify({
       apiKey,
       systemPrompt: HORIZON_BRIEFING_SYSTEM_PROMPT,
-      prompt: 'Here is the context. Write the forward-looking briefing.\n\n' + JSON.stringify(ctx, null, 2),
+      prompt: `Write the forward-looking briefing about ${ctx.subject_name}'s week ahead. Here is the context.\n\n` + JSON.stringify(ctx, null, 2),
       maxTokens: 220,
       provider: (currentUserProfile?.preferred_ai || selectedAI || 'claude'),
     }),
