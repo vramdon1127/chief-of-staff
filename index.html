@@ -1390,7 +1390,6 @@
       </button>
       <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;">📥 Triage</div>
     </div>
-    <div id="replyContextCard"></div>
     <div id="triageBody"></div>
   </div>
 
@@ -1536,6 +1535,11 @@
     Settings
   </button>
 </nav>
+
+<!-- REPLY CONTEXT PANEL — body-level so the single panel is reachable from the
+     Brief card, the Triage drill-in, and task rows alike. Sitting outside every
+     .view also means showView()'s active-class sweep can't drop it. -->
+<div id="replyContextCard"></div>
 
 <!-- EDIT TASK MODAL -->
 <div class="modal-overlay" id="editModal" style="display:none;">
@@ -1981,7 +1985,12 @@ async function initApp(user) {
   maybeShowAiExplainer();
   // Restore last-visited view from localStorage; falls back to 'brief' for
   // first login, blocked storage, or stale/invalid values.
+  // Read the drill-in flag FIRST — showView() clears it — then reopen triage
+  // on top. Without this, Supabase's focus-time SIGNED_IN re-init drops the
+  // triage view and anything open over it.
+  const triageWasOpen = readTriageOpen();
   showView(getPersistedView());
+  if (triageWasOpen) openTriage();
   // Initial banner state — viewingPartner defaults to false on every load,
   // so this hides the banner on first paint regardless of DOM defaults.
   applyPartnerBanner();
@@ -3564,6 +3573,13 @@ function renderTaskCard(task, opts = {}) {
     ? `<span class="tag" style="background:rgba(16,185,129,0.1);color:var(--done);">${task.recurrence === 'weekly' ? '🔁 Weekly' : '📅 Monthly'}</span>`
     : '';
 
+  // Reply-context affordance — only when the title actually names someone, and
+  // never in partner view (the resolver reads YOUR threads, not theirs).
+  const contextName = partnerView ? null : parseContactFromTaskTitle(task.cleaned_task || task.content || '');
+  const contextBtn = contextName
+    ? `<button class="task-action-btn" onclick="openReplyContextForTask(event, '${task.id}')" title="Pull the thread with ${escapeHtml(contextName)}">🧵 Context</button>`
+    : '';
+
   // Action row — existing per-mode variation preserved exactly.
   let actionsHtml = '';
   if (mode === 'hat' && selectionMode) {
@@ -3574,6 +3590,7 @@ function renderTaskCard(task, opts = {}) {
     // done life tasks are information-only
   } else if (mode === 'drilldown') {
     actionsHtml = `<div class="task-actions">
+      ${contextBtn}
       <button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>
       <button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>
     </div>`;
@@ -3587,7 +3604,7 @@ function renderTaskCard(task, opts = {}) {
     const edit = `<button class="task-action-btn" onclick="openEditModal('${task.id}')">✏️ Edit</button>`;
     // Life view omits Delete per existing behavior.
     const del = (mode === 'life') ? '' : `<button class="task-action-btn danger" onclick="removeTask('${task.id}')">Delete</button>`;
-    actionsHtml = `<div class="task-actions">${aiComplete}${aiAssist}${edit}${del}</div>`;
+    actionsHtml = `<div class="task-actions">${aiComplete}${aiAssist}${contextBtn}${edit}${del}</div>`;
   }
 
   // Notes — hat and today only, matching pre-refactor behavior.
@@ -4686,7 +4703,11 @@ async function loadBriefActionables() {
     if (!res.ok) { el.innerHTML = ''; return; }
     const data = await res.json();
     const items = Array.isArray(data?.payload?.actionables) ? data.payload.actionables : [];
-    briefActionables = { date: data.brief_date || today, items, selected: new Set() };
+    // Carry the selection across reloads — a focus-time re-init calls this and
+    // would otherwise silently clear checkboxes mid-review. Ids that no longer
+    // match an item are inert, since every read filters by the items array.
+    const keepSelected = briefActionables.selected instanceof Set ? briefActionables.selected : new Set();
+    briefActionables = { date: data.brief_date || today, items, selected: keepSelected };
     renderBriefActionables();
   } catch (e) {
     console.warn('[brief] actionables load failed:', e?.message || e);
@@ -4722,6 +4743,7 @@ function renderBriefActionables() {
           ${i.snippet ? `<span style="display:block;color:var(--text2);font-size:12px;margin-top:2px;">${escapeHtml(i.snippet)}</span>` : ''}
           ${i.reason ? `<span style="display:block;color:var(--text2);opacity:0.8;font-size:11px;margin-top:2px;font-style:italic;">${escapeHtml(i.reason)}</span>` : ''}
         </span>
+        <button type="button" onclick="openReplyContext(event, ${idx})" title="Pull the thread with this person" style="background:none;border:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0 2px;flex:0 0 auto;white-space:nowrap;">Context</button>
         <button type="button" onclick="dismissActionable(event, ${idx})" title="Dismiss" aria-label="Dismiss" style="background:none;border:none;color:var(--text2);font-size:15px;cursor:pointer;padding:0 2px;flex:0 0 auto;line-height:1;">✕</button>
       </label>
     `);
@@ -4817,8 +4839,12 @@ async function dismissActionable(evt, idx) {
 // "View all" on the Brief card; not a bottom-nav tab.
 function openTriage() {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const v = document.getElementById('view-triage');
   if (v) v.classList.add('active');
+  // Remember the drill-in so a focus-time re-init lands back here instead of
+  // bouncing to the last persisted nav tab.
+  writeTriageOpen(true);
   if (!briefActionables.items.length) {
     loadBriefActionables().then(renderTriage);
   } else {
@@ -4827,11 +4853,7 @@ function openTriage() {
 }
 
 function closeTriage() {
-  // Leaving triage drops the reply-context panel too, so reopening triage
-  // doesn't surface a stale thread and an unsent draft.
-  replyContext.open = false;
-  renderReplyContextCard();
-  showView('brief');
+  showView('brief'); // clears the drill-in flag
 }
 
 function triageSelectableIds() {
@@ -4914,8 +4936,10 @@ function renderTriage() {
 }
 
 // ─── REPLY CONTEXT (resolve who this is + pull the thread) ──────────────────
-// Sits above the triage list. "Context" on a needs-reply row asks
-// POST /api/reply-context to resolve the person and return the recent thread
+// One body-level sheet, three entry points: the Brief "Needs your attention"
+// rows, the Triage drill-in rows, and any task row whose title names a person
+// ("reply to Mia"). All of them funnel through startReplyContext().
+// POST /api/reply-context resolves the person and returns the recent thread
 // with them, so a reply can be written against real history instead of a
 // one-line snippet.
 //
@@ -4957,14 +4981,13 @@ function replyContextSeedQuery(item) {
   return fromTitle || item.task_title || '';
 }
 
-function openReplyContext(evt, idx) {
-  if (evt) { evt.preventDefault(); evt.stopPropagation(); } // don't toggle the row checkbox
-  const item = briefActionables.items[idx];
-  if (!item) return;
+// Single entry point for all three surfaces (Brief card rows, Triage rows,
+// task rows). Everything else just works out a name and calls this.
+function startReplyContext(query, sourceId) {
   replyContext = {
     open: true,
-    itemId: item.id,
-    query: replyContextSeedQuery(item),
+    itemId: sourceId || null,
+    query: query || '',
     loading: false,
     status: null,
     data: null,
@@ -4973,7 +4996,67 @@ function openReplyContext(evt, idx) {
     approved: false,
   };
   renderReplyContextCard();
-  resolveReplyContext();
+  if ((query || '').trim()) resolveReplyContext();
+}
+
+function openReplyContext(evt, idx) {
+  if (evt) { evt.preventDefault(); evt.stopPropagation(); } // don't toggle the row checkbox
+  const item = briefActionables.items[idx];
+  if (!item) return;
+  startReplyContext(replyContextSeedQuery(item), item.id);
+}
+
+// Task rows: the contact is whatever the title names ("reply to Mia").
+function openReplyContextForTask(evt, taskId) {
+  if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+  const task = tasks.find(t => String(t.id) === String(taskId));
+  if (!task) return;
+  const name = parseContactFromTaskTitle(task.cleaned_task || task.content || '');
+  if (!name) return; // button isn't rendered in this case, but don't trust that
+  startReplyContext(name, `task:${task.id}`);
+}
+
+// Pull a contact name out of a task title. Deliberately conservative: it
+// recognizes the four phrasings STWRD actually generates for reply tasks and
+// returns null for anything else, so the button stays off rather than sending
+// junk like "the dentist about my crown" to the resolver.
+const REPLY_CONTEXT_TITLE_PATTERNS = [
+  /\breply\s+to\s+(.+)$/i,
+  /\bfollow\s+up\s+with\s+(.+)$/i,
+  /\btext\s+(.+)$/i,
+  /\bemail\s+(.+)$/i,
+];
+
+// Everything from one of these onward is subject matter, not the person.
+const REPLY_CONTEXT_TAIL_SPLIT = /\s+(?:about|re|regarding|on|for|with|to|and|before|after|so|that|asking|who|which)\b|[,;:(–—]|\s+-\s+/i;
+
+// Trailing words that are timing or follow-up adverbs, never part of a name.
+const REPLY_CONTEXT_TRAILING_FILLER = /^(?:tonight|today|tomorrow|later|now|asap|back|again|soon|already|please)$/i;
+
+function parseContactFromTaskTitle(title) {
+  const raw = String(title || '').trim();
+  if (!raw) return null;
+  for (const pattern of REPLY_CONTEXT_TITLE_PATTERNS) {
+    const m = raw.match(pattern);
+    if (!m) continue;
+    let name = m[1].split(REPLY_CONTEXT_TAIL_SPLIT)[0] || '';
+    name = name.replace(/[.!?'"\s]+$/g, '').replace(/^['"\s]+/g, '').trim();
+    if (!name) return null;
+    // A real name is short. Anything longer is a sentence that happened to
+    // start with "email", so don't guess.
+    const words = name.split(/\s+/);
+    // "Text Mia tonight" names Mia, not "Mia tonight". Drop trailing timing
+    // and follow-up adverbs before the length check.
+    while (words.length > 1 && REPLY_CONTEXT_TRAILING_FILLER.test(words[words.length - 1])) words.pop();
+    name = words.join(' ');
+    if (words.length > 3) return null;
+    // Reject leading articles/possessives — "the team", "my sister" aren't
+    // resolvable handles.
+    if (/^(the|a|an|my|our|his|her|their|them|him|it|everyone|anyone|someone)$/i.test(words[0])) return null;
+    if (name.length < 2) return null;
+    return name;
+  }
+  return null;
 }
 
 function closeReplyContext() {
@@ -5203,7 +5286,13 @@ function renderReplyContextCard() {
     bodyHtml = '';
   }
 
-  el.innerHTML = `<div class="stat-card" style="margin-bottom:20px;">${header}${bodyHtml}</div>`;
+  // Body-level sheet reusing the app's modal chrome, so the one panel serves
+  // the Brief card, the Triage drill-in, and task rows. Backdrop click closes;
+  // clicks inside must not bubble out to it.
+  el.innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this)closeReplyContext()">
+      <div class="modal" style="padding-bottom:32px;">${header}${bodyHtml}</div>
+    </div>`;
 }
 
 // ─── TOMORROW BRIEFING (Loop G) ───────────────────────────────
@@ -5648,6 +5737,26 @@ async function renderStats() {
 const STWRD_LAST_VIEW_KEY = 'stwrd_lastView';
 const VALID_VIEWS = ['capture', 'today', 'brief', 'stats', 'settings'];
 
+// Triage is a drill-in, not a nav tab, so it can't live in VALID_VIEWS and
+// getPersistedView() can never return it. Supabase emits SIGNED_IN on its
+// focus-time session recovery, which re-runs initApp → showView(persisted),
+// and that would silently drop the drill-in. This flag is what lets initApp
+// put the user back where they actually were.
+const STWRD_TRIAGE_OPEN_KEY = 'stwrd_triageOpen';
+
+function readTriageOpen() {
+  try {
+    return localStorage.getItem(STWRD_TRIAGE_OPEN_KEY) === 'true';
+  } catch (e) { return false; }
+}
+
+function writeTriageOpen(isOpen) {
+  try {
+    if (isOpen) localStorage.setItem(STWRD_TRIAGE_OPEN_KEY, 'true');
+    else localStorage.removeItem(STWRD_TRIAGE_OPEN_KEY);
+  } catch (e) { /* localStorage unavailable — drill-in just won't be restored */ }
+}
+
 function getPersistedView() {
   try {
     const stored = localStorage.getItem(STWRD_LAST_VIEW_KEY);
@@ -5659,8 +5768,13 @@ function getPersistedView() {
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById(`view-${name}`).classList.add('active');
-  document.getElementById(`nav-${name}`).classList.add('active');
+  document.getElementById(`view-${name}`)?.classList.add('active');
+  // Drill-in views (triage, drilldown) have no bottom-nav button. Guard the
+  // lookup so calling showView with one can't throw on a missing element.
+  document.getElementById(`nav-${name}`)?.classList.add('active');
+  // Landing on a nav tab means the triage drill-in is no longer where the user
+  // is, so it must not be restored on the next re-init.
+  writeTriageOpen(false);
   if (name === 'brief') { loadBriefActionables(); renderBriefing(); renderTomorrowBriefing(); renderHorizonBriefing(); }
   if (name === 'stats') renderStats();
   if (name === 'settings') { loadHatEditor(); loadDigestSettings(); loadCalendarSettings(); renderKeywordEditor(); renderLifeAreasEditor(); }
