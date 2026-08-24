@@ -1390,6 +1390,7 @@
       </button>
       <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;">📥 Triage</div>
     </div>
+    <div id="replyContextCard"></div>
     <div id="triageBody"></div>
   </div>
 
@@ -4826,6 +4827,10 @@ function openTriage() {
 }
 
 function closeTriage() {
+  // Leaving triage drops the reply-context panel too, so reopening triage
+  // doesn't surface a stale thread and an unsent draft.
+  replyContext.open = false;
+  renderReplyContextCard();
   showView('brief');
 }
 
@@ -4877,6 +4882,7 @@ function renderTriage() {
           ${i.snippet ? `<span style="display:block;color:var(--text2);font-size:12px;margin-top:2px;">${escapeHtml(i.snippet)}</span>` : ''}
           ${i.reason ? `<span style="display:block;color:var(--text2);opacity:0.8;font-size:11px;margin-top:2px;font-style:italic;">${escapeHtml(i.reason)}</span>` : ''}
         </span>
+        <button type="button" onclick="openReplyContext(event, ${idx})" title="Pull the thread with this person" style="background:none;border:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0 2px;flex:0 0 auto;white-space:nowrap;">Context</button>
         <button type="button" onclick="dismissActionable(event, ${idx})" title="Dismiss" aria-label="Dismiss" style="background:none;border:none;color:var(--text2);font-size:15px;cursor:pointer;padding:0 2px;flex:0 0 auto;line-height:1;">✕</button>
       </label>
     `;
@@ -4905,6 +4911,299 @@ function renderTriage() {
       ${staleRows}
     </div>` : ''}
   `;
+}
+
+// ─── REPLY CONTEXT (resolve who this is + pull the thread) ──────────────────
+// Sits above the triage list. "Context" on a needs-reply row asks
+// POST /api/reply-context to resolve the person and return the recent thread
+// with them, so a reply can be written against real history instead of a
+// one-line snippet.
+//
+// The resolver answers in exactly three shapes and the card renders one panel
+// per shape:
+//   hit        → contact + matched_count + newest_msg_ts + thread, then a
+//                draft box you write and approve
+//   ambiguous  → the candidate display names; picking one drops it into the
+//                query box and resolves again with that more specific name
+//   miss       → matched_count 0, nothing to pull; edit the query and retry
+//
+// DRAFT ONLY. There is no send path in this card and the approve button is
+// deliberately inert — approving marks the draft ready for you to send
+// yourself. Nothing here messages anyone.
+let replyContext = {
+  open: false,
+  itemId: null,
+  query: '',
+  loading: false,
+  status: null,   // 'hit' | 'ambiguous' | 'miss' | null
+  data: null,
+  error: null,
+  draft: '',
+  approved: false,
+};
+
+// The brief item doesn't always carry a raw handle: assembleActionables keeps
+// the sender inside the imessage id (`imessage:<handle>:<iso-ts>`) and gmail
+// ids are an opaque hash. So we seed the best guess we have and let the box be
+// edited — resolving fuzzy input is the resolver's job, and an ambiguous
+// answer is a first-class result rather than an error.
+function replyContextSeedQuery(item) {
+  if (!item) return '';
+  if (item.subtype === 'imessage' && typeof item.source_id === 'string') {
+    const handle = item.source_id.split(':')[1];
+    if (handle) return handle;
+  }
+  const fromTitle = (item.title || '').split(' · ')[0];
+  return fromTitle || item.task_title || '';
+}
+
+function openReplyContext(evt, idx) {
+  if (evt) { evt.preventDefault(); evt.stopPropagation(); } // don't toggle the row checkbox
+  const item = briefActionables.items[idx];
+  if (!item) return;
+  replyContext = {
+    open: true,
+    itemId: item.id,
+    query: replyContextSeedQuery(item),
+    loading: false,
+    status: null,
+    data: null,
+    error: null,
+    draft: '',
+    approved: false,
+  };
+  renderReplyContextCard();
+  resolveReplyContext();
+}
+
+function closeReplyContext() {
+  replyContext.open = false;
+  renderReplyContextCard();
+}
+
+function setReplyContextQuery(value) {
+  replyContext.query = value;
+}
+
+function setReplyDraft(value) {
+  replyContext.draft = value;
+  // Editing after approving reopens the approval — the approved text and the
+  // text in the box should never disagree.
+  if (replyContext.approved) {
+    replyContext.approved = false;
+    renderReplyContextCard();
+  }
+}
+
+async function resolveReplyContext() {
+  const query = (replyContext.query || '').trim();
+  if (!query) {
+    replyContext.error = 'Enter a name, number, or email to resolve.';
+    replyContext.status = null;
+    renderReplyContextCard();
+    return;
+  }
+  const jwt = getAuthJwt();
+  if (!jwt) { showToast('⚠️ Not logged in'); return; }
+
+  replyContext.loading = true;
+  replyContext.error = null;
+  renderReplyContextCard();
+
+  try {
+    const res = await fetch('/api/reply-context', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      replyContext.status = null;
+      replyContext.data = null;
+      replyContext.error = replyContextErrorText(out.error, res.status);
+      return;
+    }
+    replyContext.status = out.status || null;
+    replyContext.data = out;
+    if (!replyContext.status) {
+      replyContext.error = 'Resolver returned an unrecognized response.';
+    }
+  } catch (e) {
+    replyContext.status = null;
+    replyContext.data = null;
+    replyContext.error = 'Could not reach the resolver: ' + (e?.message || e);
+  } finally {
+    replyContext.loading = false;
+    renderReplyContextCard();
+  }
+}
+
+function replyContextErrorText(code, httpStatus) {
+  const map = {
+    not_enabled: 'Reply context is not enabled for this account yet.',
+    not_configured: 'Reply context is not configured on the server.',
+    missing_query: 'Enter a name, number, or email to resolve.',
+    query_too_long: 'That query is too long.',
+    resolver_timeout: 'The resolver timed out. Try again.',
+    resolver_unavailable: 'The resolver is unavailable right now.',
+    resolver_error: 'The resolver reported an error.',
+    resolver_bad_json: 'The resolver returned an unreadable response.',
+    resolver_bad_shape: 'The resolver returned an unexpected shape.',
+    missing_auth: 'Not logged in.',
+    invalid_jwt: 'Session expired — sign in again.',
+  };
+  return map[code] || `Resolve failed (${code || httpStatus}).`;
+}
+
+function replyContextTimestamp(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return String(ts);
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: 'America/Chicago',
+  });
+}
+
+function replyContextContactName(contact) {
+  if (!contact) return 'Unknown contact';
+  if (typeof contact === 'string') return contact;
+  return contact.name || contact.resolved_name || contact.display_name
+    || contact.handle || contact.address || contact.id || 'Unknown contact';
+}
+
+// The thread shape belongs to the edge function, so render defensively: an
+// array of message-ish objects is the expected case, anything else falls back
+// to readable text rather than throwing mid-render.
+function replyContextThreadHtml(thread) {
+  if (!thread) return '';
+  const msgs = Array.isArray(thread) ? thread : (Array.isArray(thread.messages) ? thread.messages : null);
+  if (!msgs) {
+    const text = typeof thread === 'string' ? thread : JSON.stringify(thread, null, 2);
+    return `<pre style="white-space:pre-wrap;word-break:break-word;color:var(--text2);font-size:11px;margin:0;">${escapeHtml(text.slice(0, 2000))}</pre>`;
+  }
+  if (!msgs.length) return `<div style="color:var(--text2);font-size:12px;">Thread is empty.</div>`;
+  return msgs.slice(-12).map(m => {
+    const mine = !!(m && (m.from_me || m.is_from_me));
+    const who = mine ? 'You' : replyContextContactName(m?.sender || m?.from) ;
+    const when = replyContextTimestamp(m?.ts || m?.sent_at || m?.date);
+    const text = (m && (m.text ?? m.body ?? m.content)) || '';
+    return `
+      <div style="padding:7px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:2px;">
+          <span style="font-weight:600;color:${mine ? 'var(--text2)' : 'var(--accent)'};">${escapeHtml(String(who))}</span>${when ? ` · ${escapeHtml(when)}` : ''}
+        </div>
+        <div style="font-size:13px;white-space:pre-wrap;word-break:break-word;">${escapeHtml(String(text).slice(0, 600))}</div>
+      </div>`;
+  }).join('');
+}
+
+// Candidates are display-name strings. Picking one just puts that more
+// specific name in the query box and resolves again — the resolver has no
+// candidate-id path, the name IS the handle.
+function pickReplyCandidate(idx) {
+  const candidate = (replyContext.data?.candidates || [])[idx];
+  if (!candidate) return;
+  replyContext.query = String(candidate);
+  resolveReplyContext();
+}
+
+function approveReplyDraft() {
+  if (!(replyContext.draft || '').trim()) {
+    showToast('Write a draft first');
+    return;
+  }
+  replyContext.approved = true;
+  renderReplyContextCard();
+  showToast('✅ Draft approved — copy it and send it yourself');
+}
+
+async function copyReplyDraft() {
+  const text = (replyContext.draft || '').trim();
+  if (!text) { showToast('Nothing to copy'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('📋 Draft copied');
+  } catch (e) {
+    showToast('⚠️ Could not copy — select the text and copy manually');
+  }
+}
+
+function renderReplyContextCard() {
+  const el = document.getElementById('replyContextCard');
+  if (!el) return;
+  if (!replyContext.open) { el.innerHTML = ''; return; }
+
+  const header = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;">
+      <span style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;">🧵 Reply context</span>
+      <button onclick="closeReplyContext()" title="Close" aria-label="Close" style="background:none;border:none;color:var(--text2);font-size:15px;cursor:pointer;padding:0 2px;line-height:1;">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input type="text" value="${escapeHtml(replyContext.query || '')}" oninput="setReplyContextQuery(this.value)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();resolveReplyContext();}"
+        placeholder="Name, number, or email"
+        style="flex:1;min-width:0;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;">
+      <button onclick="resolveReplyContext()" ${replyContext.loading ? 'disabled' : ''}
+        style="padding:8px 14px;border-radius:10px;border:none;background:${replyContext.loading ? 'var(--surface2)' : 'var(--accent)'};color:${replyContext.loading ? 'var(--text2)' : '#fff'};font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:${replyContext.loading ? 'not-allowed' : 'pointer'};white-space:nowrap;">Resolve</button>
+    </div>
+  `;
+
+  let bodyHtml;
+  if (replyContext.loading) {
+    bodyHtml = `<div style="color:var(--text2);font-size:13px;padding:6px 0;">Pulling the thread…</div>`;
+  } else if (replyContext.error) {
+    bodyHtml = `<div style="color:var(--text2);font-size:13px;padding:6px 0;">⚠️ ${escapeHtml(replyContext.error)}</div>`;
+  } else if (replyContext.status === 'ambiguous') {
+    const candidates = replyContext.data?.candidates || [];
+    bodyHtml = `
+      <div style="color:var(--text2);font-size:12px;margin-bottom:8px;">More than one person matches. Pick who you meant.</div>
+      ${candidates.map((c, i) => `
+        <button type="button" onclick="pickReplyCandidate(${i})"
+          style="display:block;width:100%;text-align:left;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">
+          ${escapeHtml(String(c))}
+        </button>`).join('')}
+    `;
+  } else if (replyContext.status === 'miss') {
+    bodyHtml = `
+      <div style="color:var(--text2);font-size:13px;padding:6px 0;">
+        No matching thread found. Adjust the name, number, or email above and resolve again.
+      </div>`;
+  } else if (replyContext.status === 'hit') {
+    const d = replyContext.data || {};
+    const name = replyContextContactName(d.contact);
+    const when = replyContextTimestamp(d.newest_msg_ts);
+    const count = Number(d.matched_count) || 0;
+    const draft = replyContext.draft || '';
+    const hasDraft = !!draft.trim();
+    bodyHtml = `
+      <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);margin-bottom:12px;">
+        <div style="font-weight:600;font-size:14px;">${escapeHtml(name)}</div>
+        <div style="color:var(--text2);font-size:12px;margin-top:2px;">
+          ${count} matched message${count === 1 ? '' : 's'}${when ? ` · latest ${escapeHtml(when)}` : ''}
+        </div>
+      </div>
+      <div style="max-height:260px;overflow-y:auto;margin-bottom:12px;">
+        ${replyContextThreadHtml(d.thread)}
+      </div>
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;margin-bottom:6px;">Draft reply</div>
+      <textarea oninput="setReplyDraft(this.value)" rows="5" placeholder="Write your reply here…"
+        style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;resize:vertical;">${escapeHtml(draft)}</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <span style="color:var(--text2);font-size:11px;">Draft only — STWRD never sends this for you.</span>
+        <span style="display:flex;gap:8px;">
+          <button onclick="copyReplyDraft()" ${hasDraft ? '' : 'disabled'}
+            style="padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:${hasDraft ? 'var(--text)' : 'var(--text2)'};font-family:'DM Sans',sans-serif;font-size:13px;cursor:${hasDraft ? 'pointer' : 'not-allowed'};white-space:nowrap;">Copy</button>
+          <button onclick="approveReplyDraft()" ${hasDraft && !replyContext.approved ? '' : 'disabled'}
+            style="padding:8px 14px;border-radius:10px;border:none;background:${hasDraft && !replyContext.approved ? 'var(--accent)' : 'var(--surface2)'};color:${hasDraft && !replyContext.approved ? '#fff' : 'var(--text2)'};font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:${hasDraft && !replyContext.approved ? 'pointer' : 'not-allowed'};white-space:nowrap;">${replyContext.approved ? '✅ Approved' : 'Approve'}</button>
+        </span>
+      </div>
+    `;
+  } else {
+    bodyHtml = '';
+  }
+
+  el.innerHTML = `<div class="stat-card" style="margin-bottom:20px;">${header}${bodyHtml}</div>`;
 }
 
 // ─── TOMORROW BRIEFING (Loop G) ───────────────────────────────
